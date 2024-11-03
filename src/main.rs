@@ -8,7 +8,7 @@ use axum::{
 use maud::{html, Markup};
 use std::net::SocketAddr;
 use serde::Deserialize;
-use pulldown_cmark::{Parser, html::push_html};
+use pulldown_cmark::{Parser, Options, html::push_html};
 
 #[tokio::main]
 async fn main() {
@@ -59,7 +59,12 @@ fn render_ui() -> Markup {
 }
 
 async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
-    let parser = Parser::new(&input.content);
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_TABLES);
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TASKLISTS);
+    
+    let parser = Parser::new_ext(&input.content, options);
     let mut html_output = String::new();
     push_html(&mut html_output, parser);
     

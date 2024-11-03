@@ -18,7 +18,7 @@ async fn main() {
         .route("/preview", post(preview_markdown))
         .route("/edit", post(edit_mode));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     println!("Listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
@@ -34,7 +34,7 @@ struct MarkdownInput {
 fn render_ui() -> Markup {
     html! {
         head {
-            title { "Mdow 🌾" }
+            title { "mdow 🌾" }
             meta charset="utf-8";
             meta name="viewport" content="width=device-width, initial-scale=1";
             link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
@@ -44,7 +44,7 @@ fn render_ui() -> Markup {
         body a="auto" {
             main class="content" aria-label="Content" {
                 div class="w" {
-                    h1 { "Mdow 🌾" }
+                    h1 { "mdow 🌾" }
                     p {
                         b {"A meadow for your markdown files."}
                     }
@@ -56,7 +56,7 @@ fn render_ui() -> Markup {
                             button disabled { "Share (coming soon)" }
                         }
                         div id="content-area" {
-                            textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 300px); resize: none;" {}
+                            textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {}
                         }
                     }
                 }
@@ -65,7 +65,7 @@ fn render_ui() -> Markup {
         footer {
             div class="w" {
                 {
-                    p { "A " a href="https://yree.io" { "Yree" } " product ♥" }
+                    p { a href="https://github.com/yree/mdow" { "@yree/mdow" } " :: A " a href="https://yree.io" { "Yree" } " product ♥" }
                 }
             }
         }
@@ -83,8 +83,7 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
     push_html(&mut html_output, parser);
     
     let preview_markup = html! {
-
-        div id="markdown-preview" {
+        div id="markdown-preview" style="border: .2ch solid #000; padding: 2ch; height: calc(100vh - 275px); overflow-y: auto;" {
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))
         }
@@ -92,7 +91,6 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
             "document.getElementById('preview-button').style.display = 'none';"
             "document.getElementById('edit-button').style.display = 'block';"
         }
-
         script { "MathJax.typeset();" }
     };
 
@@ -101,7 +99,7 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
 
 async fn edit_mode(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     let edit_markup = html! {
-        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 300px); resize: none;" {
+        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {
             (input.content)
         }
         script {

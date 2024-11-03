@@ -9,3 +9,4 @@ maud = "0.25"
 tokio = { version = "1.0", features = ["full"] }
 pulldown-cmark = "0.9"
 serde = { version = "1.0", features = ["derive"] }
+html-escape = "0.2.13"

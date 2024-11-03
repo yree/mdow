@@ -51,7 +51,7 @@ fn render_ui() -> Markup {
                     div class="grid" {
                         button id="preview-button" type="button" hx-post="/preview" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-input" { "Preview" }
                         button id="edit-button" type="button" hx-post="/edit" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-preview" style="display: none;" { "Edit" }
-                        button disabled { "Share" }
+                        button disabled { "Share (coming soon)" }
                     }
                     div id="content-area" {
                         textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: 100%;" {}
@@ -59,7 +59,7 @@ fn render_ui() -> Markup {
                 }
             }
         }
-     }
+    }
 }
 
 async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
@@ -73,6 +73,7 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
     push_html(&mut html_output, parser);
     
     let preview_markup = html! {
+
         div id="markdown-preview" {
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))

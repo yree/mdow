@@ -82,6 +82,13 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
     let mut html_output = String::new();
     push_html(&mut html_output, parser);
     
+    let html_output = html_output
+        .replace(
+            "<pre><code class=\"language-",
+            "<div class=\"highlighter-rouge\"><pre><code class=\"language-"
+        )
+        .replace("</code></pre>", "</code></pre></div>");
+
     let preview_markup = html! {
         div id="markdown-preview" style="border: .2ch solid #000; padding: 2ch; height: calc(100vh - 275px); overflow-y: auto;" {
             input type="hidden" name="content" value=(encode_text(&input.content));

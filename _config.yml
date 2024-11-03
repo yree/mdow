@@ -1,0 +1,11 @@
+title: mdow
+author: Yree
+email: mdow@yree.io
+description: >
+  a meadow for your markdown files
+
+url: https://yree.io/mdow
+baseurl: /mdow
+git_repo: yree/mdow
+
+remote_theme: yree/mold

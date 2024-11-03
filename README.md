@@ -4,27 +4,36 @@
 
 A lightweight, browser-based markdown editor and previewer that makes sharing markdown files as simple as sharing a link.
 
-## Features
+<button onclick="window.open('https://mdow.fly.dev', '_blank')">Open mdow</button>
+
+## Features ✨
 
 - 👀 Preview markdown
 - 🔗 Shareable links that last for 30 days
 - 🚀 Fast and lightweight
 - 💻 Simple local development setup
 
-## Installation
+## Usage 🛠️
 
+1. Start the server using the below commands
+2. Open your browser and go to http://localhost:8080 or https://mdow.fly.dev
+3. Edit your markdown files
+4. Share the generated link with others
+
+## Development 🏗️
+
+1. Clone the repository
 ```bash
-# Clone the repository
 git clone https://github.com/yree/mdow.git
 cd mdow
+```
 
-# Build the project
+2. Build the project
+```bash
 cargo build
 ```
 
-## Development
-
-To run the project with hot-reload:
+3. Run the project with hot-reload:
 
 ```bash
 cargo watch -x run
@@ -32,9 +41,10 @@ cargo watch -x run
 
 Then open your browser and navigate to [http://localhost:8080](http://localhost:8080)
 
-## Usage
+## Contributing 🤝
 
-1. Start the server using the command above
-2. Open your browser and go to http://localhost:8080
-3. Create or edit your markdown files
-4. Share the generated link with others
+Feel free to report bugs or send pull requests over on GitHub at [yree/mdow](https://github.com/yree/mdow). Please adhere to the [Contributor Covenant](https://www.contributor-covenant.org) code of conduct.
+
+## License 📄
+
+mdow is open-source software licensed under the [MIT License](LICENSE).

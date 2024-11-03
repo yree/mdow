@@ -35,27 +35,37 @@ fn render_ui() -> Markup {
     html! {
         head {
             title { "Mdow 🌾" }
+            meta charset="utf-8";
+            meta name="viewport" content="width=device-width, initial-scale=1";
             link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
             script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
             script src="https://unpkg.com/htmx.org@1.9.10" {}
         }
-        body {
-            div class="w" {
-                h1 { "Mdow 🌾" }
-                p { 
-                    b {"A meadow for your markdown files."}
+        body a="auto" {
+            main class="content" aria-label="Content" {
+                div class="w" {
+                    h1 { "Mdow 🌾" }
+                    p {
+                        b {"A meadow for your markdown files."}
+                    }
+                    p { "Enter your markdown, preview it, and share it (link valid for a month)." }
+                    div {
+                        div class="grid" {
+                            button id="preview-button" type="button" hx-post="/preview" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-input" { "Preview" }
+                            button id="edit-button" type="button" hx-post="/edit" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-preview" style="display: none;" { "Edit" }
+                            button disabled { "Share (coming soon)" }
+                        }
+                        div id="content-area" {
+                            textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 300px); resize: none;" {}
+                        }
+                    }
                 }
-                p { "Enter your markdown, preview it, and share it with others." }
-                p { "Shared links are valid for a month." }
-                div {
-                    div class="grid" {
-                        button id="preview-button" type="button" hx-post="/preview" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-input" { "Preview" }
-                        button id="edit-button" type="button" hx-post="/edit" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-preview" style="display: none;" { "Edit" }
-                        button disabled { "Share (coming soon)" }
-                    }
-                    div id="content-area" {
-                        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: 100%;" {}
-                    }
+            }
+        }
+        footer {
+            div class="w" {
+                {
+                    p { "A " a href="https://yree.io" { "Yree" } " product ♥" }
                 }
             }
         }
@@ -91,7 +101,7 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
 
 async fn edit_mode(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     let edit_markup = html! {
-        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%" {
+        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 300px); resize: none;" {
             (input.content)
         }
         script {

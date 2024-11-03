@@ -1,0 +1,19 @@
+    head {
+        title { "Mdow - A Markdown Meadow" }
+        link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
+    }
+    body {
+        div class="w content" {
+            h1 { "Mdow" }
+            p { "A Markdown Meadow" }
+            
+            div class="grid" {
+                button { "View Text" }
+                button { "Share" }
+            }
+            
+            div {
+                textarea placeholder="Enter your markdown here..." {}
+            }
+        }
+    }

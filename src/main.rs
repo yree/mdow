@@ -7,6 +7,7 @@ use axum::{
     extract::State,
     extract::Path,
     http::HeaderValue,
+    extract::Query,
 };
 use maud::{html, Markup, PreEscaped};
 use std::net::SocketAddr;
@@ -30,7 +31,12 @@ struct MarkdownDocument {
     expires_at: DateTime<Utc>,
 }
 
-fn render_ui() -> Markup {
+#[derive(Deserialize)]
+struct RenderParams {
+    content: Option<String>,
+}
+
+async fn render_ui(content: &str) -> Markup {
     html! {
         head {
             title { "mdow 🌾" }
@@ -55,7 +61,11 @@ fn render_ui() -> Markup {
                             button hx-post="/share" hx-trigger="click" hx-include="[name='content']" { "Share" }
                         }
                         div id="content-area" {
-                            textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {}
+                            textarea id="markdown-input" name="content" placeholder=(if content.is_empty() { "Enter your markdown..." } else { "" }) style="width: 100%; height: calc(100vh - 275px); resize: none;" {
+                                @if !content.is_empty() {
+                                    (content)
+                                }
+                            }
                         }
                     }
                 }
@@ -117,8 +127,13 @@ async fn edit_mode(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     Html(edit_markup.into_string())
 }
 
-async fn render() -> impl IntoResponse {
-    Html(render_ui().into_string())
+async fn render(params: Option<Query<RenderParams>>) -> impl IntoResponse {
+    let content = params
+        .and_then(|p| p.0.content)
+        .unwrap_or_else(|| "".to_string());
+    
+    let markup = render_ui(&content).await;
+    Html(markup.into_string())
 }
 
 async fn share_markdown(
@@ -200,7 +215,14 @@ async fn view_shared(
                 footer {
                     div class="w" {
                         {
-                            p { "created on " (doc.created_at.format("%Y-%m-%d")) " :: edit :: " a href="/" { "mdow" } " 🌾" }
+                            p { 
+                                "created on " (doc.created_at.format("%Y-%m-%d")) 
+                                " :: " 
+                                a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
+                                " :: "
+                                a href="/" { "mdow" } 
+                                " 🌾" 
+                            }
                         }
                     }
                 }

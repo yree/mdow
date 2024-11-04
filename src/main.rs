@@ -313,8 +313,21 @@ async fn handle_404() -> impl IntoResponse {
 async fn main() {
     // Use environment variable with a default fallback for local development
     let db_path = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:database.db".to_string());
+        .unwrap_or_else(|_| "sqlite:data/database.db".to_string());
     
+    // If using a custom path, ensure the directory exists
+    if let Some(path) = db_path.strip_prefix("sqlite:") {
+        if let Some(parent) = std::path::Path::new(path).parent() {
+            match std::fs::create_dir_all(parent) {
+                Ok(_) => println!("Database directory created/verified at: {}", parent.display()),
+                Err(e) => {
+                    eprintln!("Failed to create database directory: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
     // Initialize the database pool
     let pool = SqlitePool::connect(&db_path)
         .await

@@ -7,17 +7,19 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
-# Build dependencies - this is the caching Docker layer!
 RUN cargo chef cook --release --recipe-path recipe.json
-# Build application
 COPY . .
 RUN cargo build --release --bin mdow
 
-# We do not need the Rust toolchain to run the binary!
-FROM debian:bookworm-slim AS runtime
+FROM flyio/litefs:0.5 AS runtime
+# Install required packages
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-RUN mkdir -p /data && \
-    chown 1000:1000 /data && \
-    chmod 755 /data
 COPY --from=builder /app/target/release/mdow /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/mdow"]
+COPY litefs.yml /etc/litefs.yml
+
+ENV DATABASE_URL="sqlite:/litefs/mdow.db"
+ENTRYPOINT ["/usr/local/bin/litefs"]

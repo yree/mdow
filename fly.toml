@@ -9,8 +9,9 @@ primary_region = 'lhr'
 [build]
 
 [env]
-  PORT = '8080'
-  DATABASE_URL = "sqlite:/data/mdow.db"
+  PORT = '8081'
+  DATABASE_URL = "sqlite:/litefs/mdow.db"
+  FLY_CONSUL_URL = "consul+tls://fly-consul.fly.dev:8501"
 
 [http_service]
   internal_port = 8080
@@ -21,8 +22,8 @@ primary_region = 'lhr'
   processes = ['app']
 
 [[mounts]]
-  source = "mdow_data"
-  destination = "/data"
+  source = "mdow_litefs"
+  destination = "/var/lib/litefs"
 
 [[vm]]
   memory = '256mb'

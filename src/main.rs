@@ -15,9 +15,11 @@ use std::net::SocketAddr;
 use serde::Deserialize;
 use pulldown_cmark::{Parser, Options, html::push_html};
 use html_escape::encode_text;
-use sqlx::sqlite::SqlitePool;
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteConnectOptions, SqliteJournalMode};
 use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration};
+use std::str::FromStr;
+use std::time::Duration;
+use chrono::{DateTime, Utc};
 
 #[derive(Deserialize)]
 struct MarkdownInput {
@@ -149,7 +151,7 @@ async fn share_markdown(
 ) -> impl IntoResponse {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now();
-    let expires_at = now + Duration::days(30);
+    let expires_at = now + chrono::Duration::days(30);
 
     // Store the document
     sqlx::query(
@@ -315,21 +317,16 @@ async fn main() {
     let db_path = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "sqlite:data/database.db".to_string());
     
-    // If using a custom path, ensure the directory exists
-    if let Some(path) = db_path.strip_prefix("sqlite:") {
-        if let Some(parent) = std::path::Path::new(path).parent() {
-            match std::fs::create_dir_all(parent) {
-                Ok(_) => println!("Database directory created/verified at: {}", parent.display()),
-                Err(e) => {
-                    eprintln!("Failed to create database directory: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-    }
-
-    // Initialize the database pool
-    let pool = SqlitePool::connect(&db_path)
+    // Configure SQLite connection pool with WAL mode and busy timeout
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect_with(
+            SqliteConnectOptions::from_str(&db_path)
+                .unwrap()
+                .create_if_missing(true)
+                .journal_mode(SqliteJournalMode::Wal)
+                .busy_timeout(Duration::from_secs(30))
+        )
         .await
         .expect("Failed to connect to database");
 
@@ -358,7 +355,14 @@ async fn main() {
         .fallback(handle_404)
         .with_state(pool);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    // Get port from environment or default to 8081
+    let port =
+        std::env::var("PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(8081);
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     println!("Listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())

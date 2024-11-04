@@ -311,8 +311,12 @@ async fn handle_404() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() {
+    // Use environment variable with a default fallback for local development
+    let db_path = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite:database.db".to_string());
+    
     // Initialize the database pool
-    let pool = SqlitePool::connect("sqlite:database.db")
+    let pool = SqlitePool::connect(&db_path)
         .await
         .expect("Failed to connect to database");
 

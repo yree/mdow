@@ -10,3 +10,6 @@ tokio = { version = "1.0", features = ["full"] }
 pulldown-cmark = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 html-escape = "0.2.13"
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono"] }
+uuid = { version = "1.7", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }

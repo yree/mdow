@@ -52,7 +52,7 @@ fn render_ui() -> Markup {
                         div class="grid" {
                             button id="preview-button" type="button" hx-post="/preview" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-input" { "Preview" }
                             button id="edit-button" type="button" hx-post="/edit" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-preview" style="display: none;" { "Edit" }
-                            button hx-post="/share" hx-trigger="click" hx-include="#markdown-input" { "Share" }
+                            button hx-post="/share" hx-trigger="click" hx-include="[name='content']" { "Share" }
                         }
                         div id="content-area" {
                             textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {}

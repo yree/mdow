@@ -6,6 +6,7 @@ use axum::{
     extract::Form,
     extract::State,
     extract::Path,
+    http::HeaderValue,
 };
 use maud::{html, Markup, PreEscaped};
 use std::net::SocketAddr;
@@ -51,7 +52,7 @@ fn render_ui() -> Markup {
                         div class="grid" {
                             button id="preview-button" type="button" hx-post="/preview" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-input" { "Preview" }
                             button id="edit-button" type="button" hx-post="/edit" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-preview" style="display: none;" { "Edit" }
-                            button hx-post="/share" hx-trigger="click" hx-target="#share-result" hx-include="#markdown-input" { "Share" }
+                            button hx-post="/share" hx-trigger="click" hx-include="#markdown-input" { "Share" }
                         }
                         div id="content-area" {
                             textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {}
@@ -143,19 +144,12 @@ async fn share_markdown(
     .await
     .expect("Failed to save document");
 
-    // Generate share URL and return it
-    let share_markup = html! {
-        div {
-            p { "Your document has been shared! Link valid for 30 days:" }
-            input type="text" 
-                  value=(format!("/view/{}", id))
-                  readonly="readonly"
-                  style="width: 100%; margin-top: 1ch;"
-                  onclick="this.select()";
-        }
-    };
-
-    Html(share_markup.into_string())
+    // Use HX-Redirect header for HTMX to handle the redirect
+    (
+        [(axum::http::header::HeaderName::from_static("hx-redirect"), 
+          format!("/view/{}", id).parse::<HeaderValue>().unwrap())],
+        "Redirecting..."
+    )
 }
 
 async fn view_shared(

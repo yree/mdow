@@ -90,7 +90,7 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
         .replace("</pre>", "</pre></div>");
 
     let preview_markup = html! {
-        div id="markdown-preview" style="border: .2ch solid #000; padding: 2ch; height: calc(100vh - 275px); overflow-y: auto;" {
+        div id="markdown-preview" {
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))
         }
@@ -184,7 +184,7 @@ async fn view_shared(
             // Render the shared view
             let markup = html! {
                 head {
-                    title { "mdow 🌾 - Shared Document" }
+                    title { "mdow 🌾" }
                     meta charset="utf-8";
                     meta name="viewport" content="width=device-width, initial-scale=1";
                     link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
@@ -193,10 +193,14 @@ async fn view_shared(
                 body a="auto" {
                     main class="content" aria-label="Content" {
                         div class="w" {
-                            h1 { "mdow 🌾" }
-                            div style="border: .2ch solid #000; padding: 2ch;" {
-                                (PreEscaped(html_output))
-                            }
+                            (PreEscaped(html_output))
+                        }
+                    }
+                }
+                footer {
+                    div class="w" {
+                        {
+                            p { "created on " (doc.created_at.format("%Y-%m-%d")) " :: edit :: " a href="/" { "mdow" } " 🌾" }
                         }
                     }
                 }

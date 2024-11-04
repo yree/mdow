@@ -8,6 +8,7 @@ use axum::{
     extract::Path,
     http::HeaderValue,
     extract::Query,
+    http::StatusCode,
 };
 use maud::{html, Markup, PreEscaped};
 use std::net::SocketAddr;
@@ -36,15 +37,21 @@ struct RenderParams {
     content: Option<String>,
 }
 
+fn common_head() -> Markup {
+    html! {
+        title { "mdow 🌾" }
+        meta charset="utf-8";
+        meta name="viewport" content="width=device-width, initial-scale=1";
+        link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
+        script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
+        script src="https://unpkg.com/htmx.org@1.9.10" {}
+    }
+}
+
 async fn render_ui(content: &str) -> Markup {
     html! {
         head {
-            title { "mdow 🌾" }
-            meta charset="utf-8";
-            meta name="viewport" content="width=device-width, initial-scale=1";
-            link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
-            script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
-            script src="https://unpkg.com/htmx.org@1.9.10" {}
+            (common_head())
         }
         body a="auto" {
             main class="content" aria-label="Content" {
@@ -199,11 +206,7 @@ async fn view_shared(
             // Render the shared view
             let markup = html! {
                 head {
-                    title { "mdow 🌾" }
-                    meta charset="utf-8";
-                    meta name="viewport" content="width=device-width, initial-scale=1";
-                    link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
-                    script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
+                    (common_head())
                 }
                 body a="auto" {
                     main class="content" aria-label="Content" {
@@ -230,12 +233,32 @@ async fn view_shared(
             };
             Html(markup.into_string())
         },
-        None => Html("<h1>Document not found or expired</h1>".to_string()),
+        None => {
+            let markup = html! {
+                head {
+                    (common_head())
+                }
+                body a="auto" {
+                    main class="content" aria-label="Content" {
+                    div class="w" {
+                        h1 { "Document not found or expired" }
+                        p { "The page you're looking for doesn't exist." }
+                        p { a href="/" { "Return to homepage" } }
+                        }
+                    }
+                }
+                footer {
+                    div class="w" {
+                        p { a href="https://github.com/yree/mdow" { "@yree/mdow" } " :: A " a href="https://yree.io" { "Yree" } " product ♥" }
+                    }
+                }
+            };
+            Html(markup.into_string())
+        }
     }
 }
 
 async fn debug_db(State(pool): State<SqlitePool>) -> impl IntoResponse {
-    println!("debug db");
     let docs = sqlx::query_as::<_, MarkdownDocument>(
         "SELECT * FROM markdown_documents ORDER BY created_at DESC LIMIT 5"
     )
@@ -258,6 +281,32 @@ async fn debug_db(State(pool): State<SqlitePool>) -> impl IntoResponse {
     };
 
     Html(debug_markup.into_string())
+}
+
+async fn handle_404() -> impl IntoResponse {
+    let markup = html! {
+        head {
+            (common_head())
+        }
+        body a="auto" {
+            main class="content" aria-label="Content" {
+                div class="w" {
+                    h1 { "404 - Page Not Found" }
+                    p { "The page you're looking for doesn't exist." }
+                    p { a href="/" { "Return to homepage" } }
+                }
+            }
+        }
+        footer {
+            div class="w" {
+                {
+                    p { a href="https://github.com/yree/mdow" { "@yree/mdow" } " :: A " a href="https://yree.io" { "Yree" } " product ♥" }
+                }
+            }
+        }
+    };
+
+    (StatusCode::NOT_FOUND, Html(markup.into_string()))
 }
 
 #[tokio::main]
@@ -289,6 +338,7 @@ async fn main() {
         .route("/share", post(share_markdown))
         .route("/view/:id", get(view_shared))
         .route("/debug", get(debug_db))
+        .fallback(handle_404)
         .with_state(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));

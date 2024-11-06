@@ -62,15 +62,47 @@ async fn render_ui(content: &str) -> Markup {
                     p {
                         b {"A meadow for your markdown files."}
                     }
-                    p { "Enter your markdown, preview it, and share it (link valid for a month)." }
+                    p { "Enter your markdown, preview it, and share it." }
                     div {
                         div class="grid" {
-                            button id="preview-button" type="button" hx-post="/preview" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-input" { "Preview" }
-                            button id="edit-button" type="button" hx-post="/edit" hx-trigger="click" hx-target="#content-area" hx-swap="innerHTML" hx-include="#markdown-preview" style="display: none;" { "Edit" }
-                            button hx-post="/share" hx-trigger="click" hx-include="[name='content']" { "Share" }
+                            button 
+                                id="preview-button" 
+                                type="button" 
+                                hx-post="/preview" 
+                                hx-trigger="click" 
+                                hx-target="#content-area" 
+                                hx-swap="innerHTML" 
+                                hx-include="#markdown-input" 
+                                hx-validate="true"
+                                hx-disabled-elt="this" 
+                                { "Preview" }
+                            button
+                                id="edit-button" 
+                                type="button" 
+                                hx-post="/edit" 
+                                hx-trigger="click" 
+                                hx-target="#content-area" 
+                                hx-swap="innerHTML" 
+                                hx-include="#markdown-preview" 
+                                style="display: none;" 
+                                { "Edit" }
+                            button 
+                                id="share-button"
+                                type="button" 
+                                hx-post="/share" 
+                                hx-trigger="click" 
+                                hx-include="[name='content']" 
+                                hx-validate="true"
+                                hx-disabled-elt="this" 
+                                { "Share" }
                         }
                         div id="content-area" {
-                            textarea id="markdown-input" name="content" placeholder=(if content.is_empty() { "Enter your markdown..." } else { "" }) style="width: 100%; height: calc(100vh - 275px); resize: none;" {
+                            textarea 
+                                id="markdown-input" 
+                                name="content" 
+                                placeholder=(if content.is_empty() { "Enter your markdown..." } else { "" }) 
+                                style="width: 100%; height: calc(100vh - 275px); resize: none;"
+                                required="required" {
                                 @if !content.is_empty() {
                                     (content)
                                 }
@@ -149,7 +181,7 @@ async fn share_markdown(
     State(pool): State<SqlitePool>,
     Form(input): Form<MarkdownInput>,
 ) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string();
+    let id = Uuid::new_v4().to_string()[..7].to_string();
     let now = Utc::now();
     let expires_at = now + chrono::Duration::days(30);
 
@@ -274,8 +306,8 @@ async fn debug_db(State(pool): State<SqlitePool>) -> impl IntoResponse {
             @for doc in docs {
                 div style="margin-bottom: 2ch; padding: 1ch; border: 1px solid #ccc;" {
                     p { "ID: " (doc.id) }
-                    p { "Created: " (doc.created_at) }
-                    p { "Expires: " (doc.expires_at) }
+                    p { "Created: " (doc.created_at.format("%Y-%m-%d")) }
+                    p { "Expires: " (doc.expires_at.format("%Y-%m-%d")) }
                     p { "Content: " (doc.content) }
                 }
             }

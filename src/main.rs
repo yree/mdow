@@ -47,6 +47,7 @@ fn common_head() -> Markup {
         link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
         script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
         script src="https://unpkg.com/htmx.org@1.9.10" {}
+        script src="https://unpkg.com/hyperscript.org@0.9.12" {}
     }
 }
 
@@ -67,7 +68,6 @@ async fn render_ui(content: &str) -> Markup {
                         div class="grid" {
                             button 
                                 id="preview-button" 
-                                type="button" 
                                 hx-post="/preview" 
                                 hx-trigger="click" 
                                 hx-target="#content-area" 
@@ -75,20 +75,24 @@ async fn render_ui(content: &str) -> Markup {
                                 hx-include="#markdown-input" 
                                 hx-validate="true"
                                 hx-disabled-elt="this" 
+                                _="on click 
+                                   hide me 
+                                   show #edit-button"
                                 { "Preview" }
                             button
                                 id="edit-button" 
-                                type="button" 
                                 hx-post="/edit" 
                                 hx-trigger="click" 
                                 hx-target="#content-area" 
                                 hx-swap="innerHTML" 
                                 hx-include="#markdown-preview" 
                                 style="display: none;" 
+                                _="on click 
+                                   hide me 
+                                   show #preview-button"
                                 { "Edit" }
                             button 
                                 id="share-button"
-                                type="button" 
                                 hx-post="/share" 
                                 hx-trigger="click" 
                                 hx-include="[name='content']" 
@@ -145,10 +149,6 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))
         }
-        script {
-            "document.getElementById('preview-button').style.display = 'none';"
-            "document.getElementById('edit-button').style.display = 'block';"
-        }
         script { "MathJax.typeset();" }
     };
 
@@ -159,10 +159,6 @@ async fn edit_mode(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     let edit_markup = html! {
         textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {
             (input.content)
-        }
-        script {
-            "document.getElementById('preview-button').style.display = 'block';"
-            "document.getElementById('edit-button').style.display = 'none';"
         }
     };
     Html(edit_markup.into_string())

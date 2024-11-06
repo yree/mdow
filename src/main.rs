@@ -39,9 +39,9 @@ struct RenderParams {
     content: Option<String>,
 }
 
-fn common_head() -> Markup {
+fn common_head(title: Option<&str>) -> Markup {
     html! {
-        title { "mdow 🌾" }
+        title { (title.unwrap_or("mdow")) }
         meta charset="utf-8";
         meta name="viewport" content="width=device-width, initial-scale=1";
         link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
@@ -54,7 +54,7 @@ fn common_head() -> Markup {
 async fn render_ui(content: &str) -> Markup {
     html! {
         head {
-            (common_head())
+            (common_head(None))
         }
         body a="auto" {
             main class="content" aria-label="Content" {
@@ -62,53 +62,49 @@ async fn render_ui(content: &str) -> Markup {
                     h1 { "mdow 🌾" }
                     p { dfn {"\"A meadow for your " b {"markdown on web."} "\"" } }
                     p { "Enter your markdown, preview it, and share it." }
-                    div {
-                        div class="grid" {
-                            button 
-                                id="preview-button" 
-                                hx-post="/preview" 
-                                hx-trigger="click" 
-                                hx-target="#content-area" 
-                                hx-swap="innerHTML" 
-                                hx-include="#markdown-input" 
-                                hx-validate="true"
-                                hx-disabled-elt="this" 
-                                _="on htmx:afterRequest 
-                                   hide me 
-                                   show #edit-button"
-                                { "Preview" }
-                            button
-                                id="edit-button" 
-                                hx-post="/edit" 
-                                hx-trigger="click" 
-                                hx-target="#content-area" 
-                                hx-swap="innerHTML" 
-                                hx-include="#markdown-preview" 
-                                style="display: none;" 
-                                _="on click 
-                                   hide me 
-                                   show #preview-button"
-                                { "Edit" }
-                            button 
-                                id="share-button"
-                                hx-post="/share" 
-                                hx-trigger="click" 
-                                hx-include="[name='content']" 
-                                hx-validate="true"
-                                hx-disabled-elt="this" 
-                                { "Share" }
-                        }
-                        div id="content-area" {
-                            textarea 
-                                id="markdown-input" 
-                                name="content" 
-                                placeholder=(if content.is_empty() { "Enter your markdown..." } else { "" }) 
-                                style="width: 100%; height: calc(100vh - 275px); resize: none;"
-                                required="required" {
-                                @if !content.is_empty() {
-                                    (content)
-                                }
-                            }
+                    div class="grid" {
+                        button 
+                            id="preview-button" 
+                            hx-post="/preview" 
+                            hx-trigger="click" 
+                            hx-target="#markdown-input"
+                            hx-swap="outerHTML"
+                            hx-include="#markdown-input" 
+                            hx-validate="true"
+                            hx-disabled-elt="this" 
+                            _="on htmx:afterRequest 
+                               hide me 
+                               show #edit-button"
+                            { "Preview" }
+                        button
+                            id="edit-button" 
+                            hx-post="/edit" 
+                            hx-trigger="click" 
+                            hx-target="#markdown-preview"
+                            hx-swap="outerHTML" 
+                            hx-include="#markdown-preview" 
+                            style="display: none;" 
+                            _="on click 
+                               hide me 
+                               show #preview-button"
+                            { "Edit" }
+                        button 
+                            id="share-button"
+                            hx-post="/share" 
+                            hx-trigger="click" 
+                            hx-include="[name='content']" 
+                            hx-validate="true"
+                            hx-disabled-elt="this" 
+                            { "Share" }
+                    }
+                    textarea 
+                        id="markdown-input" 
+                        name="content" 
+                        placeholder=(if content.is_empty() { "Enter your markdown..." } else { "" }) 
+                        style="width: 100%; height: calc(100vh - 275px); resize: none;"
+                        required="required" {
+                        @if !content.is_empty() {
+                            (content)
                         }
                     }
                 }
@@ -143,8 +139,8 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
         .replace("</pre>", "</pre></div>");
 
     let preview_markup = html! {
-        br;
         div id="markdown-preview" {
+        br;
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))
         }
@@ -232,10 +228,19 @@ async fn view_shared(
                 .replace("<pre>", "<div class=\"highlighter-rouge\"><pre>")
                 .replace("</pre>", "</pre></div>");
 
+            // Extract title from first h1 tag or use default
+            let title = html_output
+                .find("<h1>")
+                .and_then(|start| {
+                    html_output[start..]
+                        .find("</h1>")
+                        .map(|end| &html_output[start + 4..start + end])
+                });
+
             // Render the shared view
             let markup = html! {
                 head {
-                    (common_head())
+                    (common_head(title.as_deref()))
                 }
                 body a="auto" {
                     main class="content" aria-label="Content" {
@@ -249,9 +254,10 @@ async fn view_shared(
                         {
                             p { 
                                 "created on " (doc.created_at.format("%Y-%m-%d")) 
-                                " :: " 
+                            }
+                            p {
                                 a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
-                                " :: "
+                                " in "
                                 a href="/" { "mdow" } 
                                 " 🌾" 
                             }
@@ -265,7 +271,7 @@ async fn view_shared(
         None => {
             let markup = html! {
                 head {
-                    (common_head())
+                    (common_head(Some("404")))
                 }
                 body a="auto" {
                     main class="content" aria-label="Content" {
@@ -315,7 +321,7 @@ async fn debug_db(State(pool): State<SqlitePool>) -> impl IntoResponse {
 async fn handle_404() -> impl IntoResponse {
     let markup = html! {
         head {
-            (common_head())
+            (common_head(None))
         }
         body a="auto" {
             main class="content" aria-label="Content" {

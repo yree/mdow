@@ -1,10 +1,10 @@
 # mdow 🌾
 
-**A meadow for your markdown files**
+_A meadow for your **m**ark**d**own **o**n **w**eb._
 
 A lightweight, browser-based markdown editor and previewer that makes sharing markdown files as simple as sharing a link.
 
-<button onclick="window.open('https://mdow.fly.dev', '_blank')">Try mdow</button>
+<button onclick="window.open('https://mdow.fly.dev', '_blank')">Try mdow 🌾</button>
 
 ## Features ✨
 

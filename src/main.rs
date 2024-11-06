@@ -60,9 +60,7 @@ async fn render_ui(content: &str) -> Markup {
             main class="content" aria-label="Content" {
                 div class="w" {
                     h1 { "mdow 🌾" }
-                    p {
-                        b {"A meadow for your markdown files."}
-                    }
+                    p { dfn {"\"A meadow for your " b {"markdown on web."} "\"" } }
                     p { "Enter your markdown, preview it, and share it." }
                     div {
                         div class="grid" {
@@ -75,7 +73,7 @@ async fn render_ui(content: &str) -> Markup {
                                 hx-include="#markdown-input" 
                                 hx-validate="true"
                                 hx-disabled-elt="this" 
-                                _="on click 
+                                _="on htmx:afterRequest 
                                    hide me 
                                    show #edit-button"
                                 { "Preview" }
@@ -145,6 +143,7 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
         .replace("</pre>", "</pre></div>");
 
     let preview_markup = html! {
+        br;
         div id="markdown-preview" {
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))

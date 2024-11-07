@@ -1,5 +1,5 @@
-// main.rs
 use axum::{
+    http::StatusCode,
     extract::{Form, Path, Query, State},
     response::{Html, IntoResponse},
     routing::{get, post},
@@ -15,6 +15,12 @@ use uuid::Uuid;
 use std::str::FromStr;
 use std::time::Duration;
 use chrono::{DateTime, Utc};
+
+const DEFAULT_PORT: u16 = 8081;
+const DEFAULT_DB_PATH: &str = "sqlite:data/database.db";
+const DOCUMENT_EXPIRY_DAYS: i64 = 30;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Deserialize)]
 struct MarkdownInput {
@@ -34,11 +40,232 @@ struct RenderParams {
     content: Option<String>,
 }
 
-const DEFAULT_PORT: u16 = 8081;
-const DEFAULT_DB_PATH: &str = "sqlite:data/database.db";
-const DOCUMENT_EXPIRY_DAYS: i64 = 30;
+#[tokio::main]
+async fn main() -> Result<()> {
+    let pool = setup_database().await?;
+    let app = setup_router(pool);
+    let addr = get_server_addr();
+    println!("Listening on {}", addr);
+    
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await?;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+    Ok(())
+}
+
+fn setup_router(pool: SqlitePool) -> Router {
+    Router::new()
+        .route("/", get(handle_main_request))
+        .route("/preview", post(handle_preview_request))
+        .route("/edit", post(handle_edit_request))
+        .route("/share", post(handle_share_request))
+        .route("/view/:id", get(handle_view_request))
+        .route("/debug", get(handle_debug_request))
+        .fallback(|| async { (StatusCode::NOT_FOUND, handle_404()) })
+        .with_state(pool)
+}
+
+async fn setup_database() -> Result<SqlitePool> {
+    let db_path = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
+    
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect_with(
+            SqliteConnectOptions::from_str(&db_path)?
+                .create_if_missing(true)
+                .journal_mode(SqliteJournalMode::Wal)
+                .busy_timeout(Duration::from_secs(30))
+        )
+        .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS markdown_documents (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            expires_at DATETIME NOT NULL
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    Ok(pool)
+}
+
+fn get_server_addr() -> SocketAddr {
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_PORT);
+    
+    SocketAddr::from(([0, 0, 0, 0], port))
+}
+
+async fn handle_main_request(params: Option<Query<RenderParams>>) -> impl IntoResponse {
+    let content = params
+        .and_then(|p| p.0.content)
+        .unwrap_or_else(|| "".to_string());
+    
+    let markup = create_markdown_editor_page(&content).await;
+    Html(markup.into_string())
+}
+
+async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
+    let html_output = convert_markdown_to_html(&input.content);
+
+    let preview_markup = html! {
+        div id="markdown-preview" {
+        br;
+            input type="hidden" name="content" value=(encode_text(&input.content));
+            (PreEscaped(html_output))
+        }
+        script { "MathJax.typeset();" }
+    };
+
+    Html(preview_markup.into_string())
+}
+
+async fn handle_edit_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
+    let edit_markup = html! {
+        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {
+            (input.content)
+        }
+    };
+    Html(edit_markup.into_string())
+}
+
+async fn handle_share_request(
+    State(pool): State<SqlitePool>,
+    Form(input): Form<MarkdownInput>,
+) -> impl IntoResponse {
+    let document_id = generate_short_uuid();
+    let creation_time = Utc::now();
+    let expiration_time = creation_time + chrono::Duration::days(DOCUMENT_EXPIRY_DAYS);
+
+    save_markdown_document(&pool, &document_id, &input.content, creation_time, expiration_time).await;
+
+    create_htmx_redirect_response(&document_id)
+}
+
+async fn handle_view_request(
+    State(pool): State<SqlitePool>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let doc = sqlx::query_as::<_, MarkdownDocument>(
+        "SELECT * FROM markdown_documents WHERE id = ? AND expires_at > datetime('now')"
+    )
+    .bind(id)
+    .fetch_optional(&pool)
+    .await
+    .expect("Failed to fetch document");
+
+    match doc {
+        Some(doc) => {
+            let markup = create_markdown_viewer_page(&doc);
+            Html(markup.into_string())
+        },
+        None => handle_404()
+    }
+}
+
+async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoResponse {
+    let docs = sqlx::query_as::<_, MarkdownDocument>(
+        "SELECT * FROM markdown_documents ORDER BY created_at DESC LIMIT 5"
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let debug_markup = html! {
+        div {
+            h2 { "Recent Documents" }
+            @for doc in docs {
+                div style="margin-bottom: 2ch; padding: 1ch; border: 1px solid #ccc;" {
+                    p { "ID: " (doc.id) }
+                    p { "Created: " (doc.created_at.format("%Y-%m-%d")) }
+                    p { "Expires: " (doc.expires_at.format("%Y-%m-%d")) }
+                    p { "Content: " (doc.content) }
+                }
+            }
+        }
+    };
+
+    Html(debug_markup.into_string())
+}
+
+fn handle_404() -> Html<String> {
+    Html(html! {
+        (create_html_head(Some("404")))
+        body a="auto" {
+            main class="content" aria-label="Content" {
+                div class="w" {
+                    h1 { "404 - Page Not Found" }
+                    p { "The page you're looking for doesn't exist." }
+                    p { a href="/" { "Return to homepage" } }
+                }
+            }
+        }
+        (create_page_footer())
+    }.into_string())
+}
+
+async fn save_markdown_document(
+    pool: &SqlitePool, 
+    id: &str, 
+    content: &str, 
+    created_at: DateTime<Utc>, 
+    expires_at: DateTime<Utc>
+) {
+    sqlx::query(
+        r#"
+        INSERT INTO markdown_documents (id, content, created_at, expires_at)
+        VALUES (?, ?, ?, ?)
+        "#,
+    )
+    .bind(id)
+    .bind(content)
+    .bind(created_at)
+    .bind(expires_at)
+    .execute(pool)
+    .await
+    .expect("Failed to save document");
+}
+
+fn convert_markdown_to_html(markdown_content: &str) -> String {
+    let markdown_options = set_markdown_parser_options();
+    let parser = Parser::new_ext(markdown_content, markdown_options);
+    let mut html_output = String::new();
+    push_html(&mut html_output, parser);
+    
+    add_syntax_highlighting_containers(html_output)
+}
+
+fn set_markdown_parser_options() -> Options {
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_TABLES);
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TASKLISTS);
+    options
+}
+
+fn add_syntax_highlighting_containers(html: String) -> String {
+    html.replace("<pre>", "<div class=\"highlighter-rouge\"><pre>")
+        .replace("</pre>", "</pre></div>")
+}
+
+fn extract_title_from_html(html_content: &str) -> Option<&str> {
+    html_content
+        .find("<h1>")
+        .and_then(|start| {
+            html_content[start..]
+                .find("</h1>")
+                .map(|end| &html_content[start + 4..start + end])
+        })
+}
 
 fn create_html_head(page_title: Option<&str>) -> Markup {
     html! {
@@ -72,7 +299,7 @@ async fn create_markdown_editor_page(initial_content: &str) -> Markup {
             main class="content" aria-label="Content" {
                 div class="w" {
                     h1 { "mdow 🌾" }
-                    p { dfn {"\"A meadow for your " b {"markdown on web."} "\"" } }
+                    p { dfn {"A meadow for your " b {"markdown on web."} } }
                     p { "Enter your markdown, preview it, and share it." }
                     div class="grid" {
                         button 
@@ -126,196 +353,36 @@ async fn create_markdown_editor_page(initial_content: &str) -> Markup {
     }
 }
 
-fn convert_markdown_to_html(markdown_content: &str) -> String {
-    let markdown_options = set_markdown_parser_options();
-    let parser = Parser::new_ext(markdown_content, markdown_options);
-    let mut html_output = String::new();
-    push_html(&mut html_output, parser);
+fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
+    let html_output = convert_markdown_to_html(&doc.content);
+    let page_title = extract_title_from_html(&html_output);
     
-    add_syntax_highlighting_containers(html_output)
-}
-
-fn set_markdown_parser_options() -> Options {
-    let mut options = Options::empty();
-    options.insert(Options::ENABLE_TABLES);
-    options.insert(Options::ENABLE_STRIKETHROUGH);
-    options.insert(Options::ENABLE_TASKLISTS);
-    options
-}
-
-fn add_syntax_highlighting_containers(html: String) -> String {
-    html.replace("<pre>", "<div class=\"highlighter-rouge\"><pre>")
-        .replace("</pre>", "</pre></div>")
-}
-
-async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
-    let html_output = convert_markdown_to_html(&input.content);
-
-    let preview_markup = html! {
-        div id="markdown-preview" {
-        br;
-            input type="hidden" name="content" value=(encode_text(&input.content));
-            (PreEscaped(html_output))
-        }
-        script { "MathJax.typeset();" }
-    };
-
-    Html(preview_markup.into_string())
-}
-
-async fn handle_edit_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
-    let edit_markup = html! {
-        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {
-            (input.content)
-        }
-    };
-    Html(edit_markup.into_string())
-}
-
-async fn handle_share_request(
-    State(pool): State<SqlitePool>,
-    Form(input): Form<MarkdownInput>,
-) -> impl IntoResponse {
-    let document_id = generate_short_uuid();
-    let creation_time = Utc::now();
-    let expiration_time = creation_time + chrono::Duration::days(DOCUMENT_EXPIRY_DAYS);
-
-    save_markdown_document(&pool, &document_id, &input.content, creation_time, expiration_time).await;
-
-    create_htmx_redirect_response(&document_id)
-}
-
-fn generate_short_uuid() -> String {
-    Uuid::new_v4().to_string()[..7].to_string()
-}
-
-async fn save_markdown_document(
-    pool: &SqlitePool, 
-    id: &str, 
-    content: &str, 
-    created_at: DateTime<Utc>, 
-    expires_at: DateTime<Utc>
-) {
-    sqlx::query(
-        r#"
-        INSERT INTO markdown_documents (id, content, created_at, expires_at)
-        VALUES (?, ?, ?, ?)
-        "#,
-    )
-    .bind(id)
-    .bind(content)
-    .bind(created_at)
-    .bind(expires_at)
-    .execute(pool)
-    .await
-    .expect("Failed to save document");
-}
-
-async fn render(params: Option<Query<RenderParams>>) -> impl IntoResponse {
-    let content = params
-        .and_then(|p| p.0.content)
-        .unwrap_or_else(|| "".to_string());
-    
-    let markup = create_markdown_editor_page(&content).await;
-    Html(markup.into_string())
-}
-
-async fn view_shared(
-    State(pool): State<SqlitePool>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
-    let doc = sqlx::query_as::<_, MarkdownDocument>(
-        "SELECT * FROM markdown_documents WHERE id = ? AND expires_at > datetime('now')"
-    )
-    .bind(id)
-    .fetch_optional(&pool)
-    .await
-    .expect("Failed to fetch document");
-
-    match doc {
-        Some(doc) => {
-            let html_output = convert_markdown_to_html(&doc.content);
-            // Extract title from first h1 tag or use default
-            let title = html_output
-                .find("<h1>")
-                .and_then(|start| {
-                    html_output[start..]
-                        .find("</h1>")
-                        .map(|end| &html_output[start + 4..start + end])
-                });
-
-            // Render the shared view
-            let markup = html! {
-                (create_html_head(title.as_deref()))
-                body a="auto" {
-                    main class="content" aria-label="Content" {
-                        div class="w" {
-                            (PreEscaped(html_output))
-                        }
-                    }
-                }
-                footer {
-                    div class="w" {
-                        {
-                            p { 
-                                "created on " (doc.created_at.format("%Y-%m-%d")) 
-                            }
-                            p {
-                                a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
-                                " in "
-                                a href="/" { "mdow" } 
-                                " 🌾" 
-                            }
-                        }
-                    }
-                }
-                script { "MathJax.typeset();" }
-            };
-            Html(markup.into_string())
-        },
-        None => handle_404()
-    }
-}
-
-async fn debug_db(State(pool): State<SqlitePool>) -> impl IntoResponse {
-    let docs = sqlx::query_as::<_, MarkdownDocument>(
-        "SELECT * FROM markdown_documents ORDER BY created_at DESC LIMIT 5"
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
-
-    let debug_markup = html! {
-        div {
-            h2 { "Recent Documents" }
-            @for doc in docs {
-                div style="margin-bottom: 2ch; padding: 1ch; border: 1px solid #ccc;" {
-                    p { "ID: " (doc.id) }
-                    p { "Created: " (doc.created_at.format("%Y-%m-%d")) }
-                    p { "Expires: " (doc.expires_at.format("%Y-%m-%d")) }
-                    p { "Content: " (doc.content) }
-                }
-            }
-        }
-    };
-
-    Html(debug_markup.into_string())
-}
-
-fn handle_404() -> Html<String> {
-    Html(html! {
-        (create_html_head(Some("404")))
+    html! {
+        (create_html_head(page_title))
         body a="auto" {
             main class="content" aria-label="Content" {
                 div class="w" {
-                    h1 { "404 - Page Not Found" }
-                    p { "The page you're looking for doesn't exist." }
-                    p { a href="/" { "Return to homepage" } }
+                    (PreEscaped(html_output))
                 }
             }
+            footer {
+                div class="w" {
+                    {
+                        p { 
+                            "created on " (doc.created_at.format("%Y-%m-%d")) 
+                        }
+                        p {
+                            a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
+                            " in "
+                            a href="/" { "mdow" } 
+                            " 🌾" 
+                        }
+                    }
+                }
+            }
+            script { "MathJax.typeset();" }
         }
-        (create_page_footer())
-    }.into_string())
+    }
 }
 
 fn create_htmx_redirect_response(document_id: &str) -> impl IntoResponse {
@@ -324,73 +391,6 @@ fn create_htmx_redirect_response(document_id: &str) -> impl IntoResponse {
     (headers, "")
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Initialize database connection
-    let pool = setup_database().await?;
-    
-    // Setup router
-    let app = setup_router(pool);
-
-    // Start server
-    let addr = get_server_addr();
-    println!("Listening on {}", addr);
-    
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
-
-    Ok(())
-}
-
-async fn setup_database() -> Result<SqlitePool> {
-    let db_path = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
-    
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect_with(
-            SqliteConnectOptions::from_str(&db_path)?
-                .create_if_missing(true)
-                .journal_mode(SqliteJournalMode::Wal)
-                .busy_timeout(Duration::from_secs(30))
-        )
-        .await?;
-
-    // Initialize schema
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS markdown_documents (
-            id TEXT PRIMARY KEY,
-            content TEXT NOT NULL,
-            created_at DATETIME NOT NULL,
-            expires_at DATETIME NOT NULL
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await?;
-
-    Ok(pool)
-}
-
-fn setup_router(pool: SqlitePool) -> Router {
-    Router::new()
-        .route("/", get(render))
-        .route("/preview", post(handle_preview_request))
-        .route("/edit", post(handle_edit_request))
-        .route("/share", post(handle_share_request))
-        .route("/view/:id", get(view_shared))
-        .route("/debug", get(debug_db))
-        .fallback(|| async { handle_404() })
-        .with_state(pool)
-}
-
-fn get_server_addr() -> SocketAddr {
-    let port = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(DEFAULT_PORT);
-    
-    SocketAddr::from(([0, 0, 0, 0], port))
+fn generate_short_uuid() -> String {
+    Uuid::new_v4().to_string()[..7].to_string()
 }

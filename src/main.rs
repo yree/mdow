@@ -1,21 +1,17 @@
 // main.rs
 use axum::{
-    routing::{get, post},
+    extract::{Form, Path, Query, State},
+    http::{HeaderValue, StatusCode},
     response::{Html, IntoResponse},
+    routing::{get, post},
     Router,
-    extract::Form,
-    extract::State,
-    extract::Path,
-    http::HeaderValue,
-    extract::Query,
-    http::StatusCode,
 };
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 use maud::{html, Markup, PreEscaped};
 use std::net::SocketAddr;
 use serde::Deserialize;
 use pulldown_cmark::{Parser, Options, html::push_html};
 use html_escape::encode_text;
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteConnectOptions, SqliteJournalMode};
 use uuid::Uuid;
 use std::str::FromStr;
 use std::time::Duration;
@@ -38,6 +34,12 @@ struct MarkdownDocument {
 struct RenderParams {
     content: Option<String>,
 }
+
+const DEFAULT_PORT: u16 = 8081;
+const DEFAULT_DB_PATH: &str = "sqlite:data/database.db";
+const DOCUMENT_EXPIRY_DAYS: i64 = 30;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn common_head(title: Option<&str>) -> Markup {
     html! {
@@ -114,7 +116,7 @@ async fn render_ui(content: &str) -> Markup {
         footer {
             div class="w" {
                 {
-                    p { a href="https://github.com/yree/mdow" { "@yree/mdow" } " :: A " a href="https://yree.io" { "Yree" } " product ♥" }
+                    p { a href="https://yree.io/mdow" { "mdow" } " 🌾 :: a " a href="https://yree.io" { "Yree" } " product ♥" }
                 }
             }
         }
@@ -122,22 +124,23 @@ async fn render_ui(content: &str) -> Markup {
     }
 }
 
-async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
+fn render_markdown(content: &str) -> String {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_STRIKETHROUGH);
     options.insert(Options::ENABLE_TASKLISTS);
     
-    let parser = Parser::new_ext(&input.content, options);
+    let parser = Parser::new_ext(content, options);
     let mut html_output = String::new();
     push_html(&mut html_output, parser);
     
-    let html_output = html_output
-        .replace(
-            "<pre>",
-            "<div class=\"highlighter-rouge\"><pre>"
-        )
-        .replace("</pre>", "</pre></div>");
+    html_output
+        .replace("<pre>", "<div class=\"highlighter-rouge\"><pre>")
+        .replace("</pre>", "</pre></div>")
+}
+
+async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
+    let html_output = render_markdown(&input.content);
 
     let preview_markup = html! {
         div id="markdown-preview" {
@@ -175,7 +178,7 @@ async fn share_markdown(
 ) -> impl IntoResponse {
     let id = Uuid::new_v4().to_string()[..7].to_string();
     let now = Utc::now();
-    let expires_at = now + chrono::Duration::days(30);
+    let expires_at = now + chrono::Duration::days(DOCUMENT_EXPIRY_DAYS);
 
     // Store the document
     sqlx::query(
@@ -204,7 +207,6 @@ async fn view_shared(
     State(pool): State<SqlitePool>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    // Fetch the document
     let doc = sqlx::query_as::<_, MarkdownDocument>(
         "SELECT * FROM markdown_documents WHERE id = ? AND expires_at > datetime('now')"
     )
@@ -215,20 +217,7 @@ async fn view_shared(
 
     match doc {
         Some(doc) => {
-            // Convert markdown to HTML (reuse your existing conversion logic)
-            let mut options = Options::empty();
-            options.insert(Options::ENABLE_TABLES);
-            options.insert(Options::ENABLE_STRIKETHROUGH);
-            options.insert(Options::ENABLE_TASKLISTS);
- 
-            let parser = Parser::new_ext(&doc.content, options);
-            let mut html_output = String::new();
-            push_html(&mut html_output, parser);
-
-            let html_output = html_output
-                .replace("<pre>", "<div class=\"highlighter-rouge\"><pre>")
-                .replace("</pre>", "</pre></div>");
-
+            let html_output = render_markdown(&doc.content);
             // Extract title from first h1 tag or use default
             let title = html_output
                 .find("<h1>")
@@ -346,25 +335,39 @@ async fn handle_404() -> impl IntoResponse {
 }
 
 #[tokio::main]
-async fn main() {
-    // Use environment variable with a default fallback for local development
-    let db_path = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:data/database.db".to_string());
+async fn main() -> Result<()> {
+    // Initialize database connection
+    let pool = setup_database().await?;
     
-    // Configure SQLite connection pool with WAL mode and busy timeout
+    // Setup router
+    let app = setup_router(pool);
+
+    // Start server
+    let addr = get_server_addr();
+    println!("Listening on {}", addr);
+    
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await?;
+
+    Ok(())
+}
+
+async fn setup_database() -> Result<SqlitePool> {
+    let db_path = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
+    
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(
-            SqliteConnectOptions::from_str(&db_path)
-                .unwrap()
+            SqliteConnectOptions::from_str(&db_path)?
                 .create_if_missing(true)
                 .journal_mode(SqliteJournalMode::Wal)
                 .busy_timeout(Duration::from_secs(30))
         )
-        .await
-        .expect("Failed to connect to database");
+        .await?;
 
-    // Create the table if it doesn't exist
+    // Initialize schema
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS markdown_documents (
@@ -376,10 +379,13 @@ async fn main() {
         "#,
     )
     .execute(&pool)
-    .await
-    .expect("Failed to create table");
+    .await?;
 
-    let app = Router::new()
+    Ok(pool)
+}
+
+fn setup_router(pool: SqlitePool) -> Router {
+    Router::new()
         .route("/", get(render))
         .route("/preview", post(preview_markdown))
         .route("/edit", post(edit_mode))
@@ -387,19 +393,14 @@ async fn main() {
         .route("/view/:id", get(view_shared))
         .route("/debug", get(debug_db))
         .fallback(handle_404)
-        .with_state(pool);
+        .with_state(pool)
+}
 
-    // Get port from environment or default to 8081
-    let port =
-        std::env::var("PORT")
-            .ok()
-            .and_then(|p| p.parse().ok())
-            .unwrap_or(8081);
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    println!("Listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+fn get_server_addr() -> SocketAddr {
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_PORT);
+    
+    SocketAddr::from(([0, 0, 0, 0], port))
 }

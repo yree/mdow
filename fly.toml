@@ -11,10 +11,11 @@ primary_region = 'lhr'
 [env]
   PORT = '8081'
   DATABASE_URL = "sqlite:/litefs/mdow.db"
+  PRIMARY_REGION = "lhr"
   FLY_CONSUL_URL = "consul+tls://fly-consul.fly.dev:8501"
 
 [http_service]
-  internal_port = 8080
+  internal_port = 8081
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true

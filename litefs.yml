@@ -9,12 +9,11 @@ proxy:
   target: "localhost:8081"
   db: "mdow.db"
 
-exec:
-  - cmd: "/usr/local/bin/mdow"
-    if-primary: true
-
 lease:
   type: "consul"
   consul:
     url: "${FLY_CONSUL_URL}"
-    key: "litefs/${FLY_APP_NAME}" 
+    key: "mdow/primary"
+
+exec:
+  - cmd: "/usr/local/bin/mdow"

@@ -1,7 +1,6 @@
 // main.rs
 use axum::{
     extract::{Form, Path, Query, State},
-    http::{HeaderValue, StatusCode},
     response::{Html, IntoResponse},
     routing::{get, post},
     Router,
@@ -41,24 +40,34 @@ const DOCUMENT_EXPIRY_DAYS: i64 = 30;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-fn common_head(title: Option<&str>) -> Markup {
+fn create_html_head(page_title: Option<&str>) -> Markup {
     html! {
-        title { (title.unwrap_or("mdow")) }
-        meta charset="utf-8";
-        meta name="viewport" content="width=device-width, initial-scale=1";
-        link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>";
-        link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
-        script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
-        script src="https://unpkg.com/htmx.org@1.9.10" {}
-        script src="https://unpkg.com/hyperscript.org@0.9.12" {}
+        head {
+            title { (page_title.unwrap_or("mdow")) }
+            meta charset="utf-8";
+            meta name="viewport" content="width=device-width, initial-scale=1";
+            link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>";
+            link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
+            script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
+            script src="https://unpkg.com/htmx.org@1.9.10" {}
+            script src="https://unpkg.com/hyperscript.org@0.9.12" {}
+        }
     }
 }
 
-async fn render_ui(content: &str) -> Markup {
+fn create_page_footer() -> Markup {
     html! {
-        head {
-            (common_head(None))
+        footer {
+            div class="w" {
+                p { a href="https://yree.io/mdow" { "mdow" } " 🌾 :: a " a href="https://yree.io" { "Yree" } " product ♥" }
+            }
         }
+    }
+}
+
+async fn create_markdown_editor_page(initial_content: &str) -> Markup {
+    html! {
+        (create_html_head(None))
         body a="auto" {
             main class="content" aria-label="Content" {
                 div class="w" {
@@ -103,44 +112,44 @@ async fn render_ui(content: &str) -> Markup {
                     textarea 
                         id="markdown-input" 
                         name="content" 
-                        placeholder=(if content.is_empty() { "Enter your markdown..." } else { "" }) 
+                        placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" }) 
                         style="width: 100%; height: calc(100vh - 275px); resize: none;"
                         required="required" {
-                        @if !content.is_empty() {
-                            (content)
+                        @if !initial_content.is_empty() {
+                            (initial_content)
                         }
                     }
                 }
             }
         }
-        footer {
-            div class="w" {
-                {
-                    p { a href="https://yree.io/mdow" { "mdow" } " 🌾 :: a " a href="https://yree.io" { "Yree" } " product ♥" }
-                }
-            }
-        }
-        div id="share-result" {}
+        (create_page_footer())
     }
 }
 
-fn render_markdown(content: &str) -> String {
+fn convert_markdown_to_html(markdown_content: &str) -> String {
+    let markdown_options = set_markdown_parser_options();
+    let parser = Parser::new_ext(markdown_content, markdown_options);
+    let mut html_output = String::new();
+    push_html(&mut html_output, parser);
+    
+    add_syntax_highlighting_containers(html_output)
+}
+
+fn set_markdown_parser_options() -> Options {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_STRIKETHROUGH);
     options.insert(Options::ENABLE_TASKLISTS);
-    
-    let parser = Parser::new_ext(content, options);
-    let mut html_output = String::new();
-    push_html(&mut html_output, parser);
-    
-    html_output
-        .replace("<pre>", "<div class=\"highlighter-rouge\"><pre>")
+    options
+}
+
+fn add_syntax_highlighting_containers(html: String) -> String {
+    html.replace("<pre>", "<div class=\"highlighter-rouge\"><pre>")
         .replace("</pre>", "</pre></div>")
 }
 
-async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
-    let html_output = render_markdown(&input.content);
+async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
+    let html_output = convert_markdown_to_html(&input.content);
 
     let preview_markup = html! {
         div id="markdown-preview" {
@@ -154,7 +163,7 @@ async fn preview_markdown(Form(input): Form<MarkdownInput>) -> impl IntoResponse
     Html(preview_markup.into_string())
 }
 
-async fn edit_mode(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
+async fn handle_edit_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     let edit_markup = html! {
         textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {
             (input.content)
@@ -163,44 +172,52 @@ async fn edit_mode(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     Html(edit_markup.into_string())
 }
 
-async fn render(params: Option<Query<RenderParams>>) -> impl IntoResponse {
-    let content = params
-        .and_then(|p| p.0.content)
-        .unwrap_or_else(|| "".to_string());
-    
-    let markup = render_ui(&content).await;
-    Html(markup.into_string())
-}
-
-async fn share_markdown(
+async fn handle_share_request(
     State(pool): State<SqlitePool>,
     Form(input): Form<MarkdownInput>,
 ) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string()[..7].to_string();
-    let now = Utc::now();
-    let expires_at = now + chrono::Duration::days(DOCUMENT_EXPIRY_DAYS);
+    let document_id = generate_short_uuid();
+    let creation_time = Utc::now();
+    let expiration_time = creation_time + chrono::Duration::days(DOCUMENT_EXPIRY_DAYS);
 
-    // Store the document
+    save_markdown_document(&pool, &document_id, &input.content, creation_time, expiration_time).await;
+
+    create_htmx_redirect_response(&document_id)
+}
+
+fn generate_short_uuid() -> String {
+    Uuid::new_v4().to_string()[..7].to_string()
+}
+
+async fn save_markdown_document(
+    pool: &SqlitePool, 
+    id: &str, 
+    content: &str, 
+    created_at: DateTime<Utc>, 
+    expires_at: DateTime<Utc>
+) {
     sqlx::query(
         r#"
         INSERT INTO markdown_documents (id, content, created_at, expires_at)
         VALUES (?, ?, ?, ?)
         "#,
     )
-    .bind(&id)
-    .bind(&input.content)
-    .bind(now)
+    .bind(id)
+    .bind(content)
+    .bind(created_at)
     .bind(expires_at)
-    .execute(&pool)
+    .execute(pool)
     .await
     .expect("Failed to save document");
+}
 
-    // Use HX-Redirect header for HTMX to handle the redirect
-    (
-        [(axum::http::header::HeaderName::from_static("hx-redirect"), 
-          format!("/view/{}", id).parse::<HeaderValue>().unwrap())],
-        "Redirecting..."
-    )
+async fn render(params: Option<Query<RenderParams>>) -> impl IntoResponse {
+    let content = params
+        .and_then(|p| p.0.content)
+        .unwrap_or_else(|| "".to_string());
+    
+    let markup = create_markdown_editor_page(&content).await;
+    Html(markup.into_string())
 }
 
 async fn view_shared(
@@ -217,7 +234,7 @@ async fn view_shared(
 
     match doc {
         Some(doc) => {
-            let html_output = render_markdown(&doc.content);
+            let html_output = convert_markdown_to_html(&doc.content);
             // Extract title from first h1 tag or use default
             let title = html_output
                 .find("<h1>")
@@ -229,9 +246,7 @@ async fn view_shared(
 
             // Render the shared view
             let markup = html! {
-                head {
-                    (common_head(title.as_deref()))
-                }
+                (create_html_head(title.as_deref()))
                 body a="auto" {
                     main class="content" aria-label="Content" {
                         div class="w" {
@@ -258,28 +273,7 @@ async fn view_shared(
             };
             Html(markup.into_string())
         },
-        None => {
-            let markup = html! {
-                head {
-                    (common_head(Some("404")))
-                }
-                body a="auto" {
-                    main class="content" aria-label="Content" {
-                    div class="w" {
-                        h1 { "Document not found or expired" }
-                        p { "The page you're looking for doesn't exist." }
-                        p { a href="/" { "Return to homepage" } }
-                        }
-                    }
-                }
-                footer {
-                    div class="w" {
-                        p { a href="https://github.com/yree/mdow" { "@yree/mdow" } " :: A " a href="https://yree.io" { "Yree" } " product ♥" }
-                    }
-                }
-            };
-            Html(markup.into_string())
-        }
+        None => handle_404()
     }
 }
 
@@ -308,11 +302,9 @@ async fn debug_db(State(pool): State<SqlitePool>) -> impl IntoResponse {
     Html(debug_markup.into_string())
 }
 
-async fn handle_404() -> impl IntoResponse {
-    let markup = html! {
-        head {
-            (common_head(None))
-        }
+fn handle_404() -> Html<String> {
+    Html(html! {
+        (create_html_head(Some("404")))
         body a="auto" {
             main class="content" aria-label="Content" {
                 div class="w" {
@@ -322,16 +314,14 @@ async fn handle_404() -> impl IntoResponse {
                 }
             }
         }
-        footer {
-            div class="w" {
-                {
-                    p { a href="https://github.com/yree/mdow" { "@yree/mdow" } " :: A " a href="https://yree.io" { "Yree" } " product ♥" }
-                }
-            }
-        }
-    };
+        (create_page_footer())
+    }.into_string())
+}
 
-    (StatusCode::NOT_FOUND, Html(markup.into_string()))
+fn create_htmx_redirect_response(document_id: &str) -> impl IntoResponse {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("hx-redirect", format!("/view/{}", document_id).parse().unwrap());
+    (headers, "")
 }
 
 #[tokio::main]
@@ -387,12 +377,12 @@ async fn setup_database() -> Result<SqlitePool> {
 fn setup_router(pool: SqlitePool) -> Router {
     Router::new()
         .route("/", get(render))
-        .route("/preview", post(preview_markdown))
-        .route("/edit", post(edit_mode))
-        .route("/share", post(share_markdown))
+        .route("/preview", post(handle_preview_request))
+        .route("/edit", post(handle_edit_request))
+        .route("/share", post(handle_share_request))
         .route("/view/:id", get(view_shared))
         .route("/debug", get(debug_db))
-        .fallback(handle_404)
+        .fallback(|| async { handle_404() })
         .with_state(pool)
 }
 

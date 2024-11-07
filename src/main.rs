@@ -44,6 +44,7 @@ fn common_head(title: Option<&str>) -> Markup {
         title { (title.unwrap_or("mdow")) }
         meta charset="utf-8";
         meta name="viewport" content="width=device-width, initial-scale=1";
+        link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>";
         link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
         script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
         script src="https://unpkg.com/htmx.org@1.9.10" {}

@@ -342,11 +342,19 @@ async fn create_markdown_editor_page(initial_content: &str) -> Markup {
                         name="content"
                         placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" })
                         style="width: 100%; height: calc(100vh - 275px); resize: none;"
-                        required="required" {
-                            @if !initial_content.is_empty() {
-                                (initial_content)
-                            }
-                        }
+                        required="required"
+                        _=(if initial_content.is_empty() {
+                            "on load
+                                set my.value to (localStorage.getItem('markdownContent'))
+                             on input
+                                wait 500ms then
+                                call localStorage.setItem('markdownContent', my.value)"
+                        } else {
+                            "on input
+                                wait 500ms then
+                                call localStorage.setItem('markdownContent', my.value)"
+                        })
+                        { (initial_content) }
                 }
             }
         }

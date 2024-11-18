@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
     let app = setup_router(pool);
     let addr = get_server_addr();
     println!("Listening on {}", addr);
-    
+
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await?;
@@ -69,14 +69,14 @@ fn setup_router(pool: SqlitePool) -> Router {
 async fn setup_database() -> Result<SqlitePool> {
     let db_path = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
-    
+
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(
             SqliteConnectOptions::from_str(&db_path)?
-                .create_if_missing(true)
-                .journal_mode(SqliteJournalMode::Wal)
-                .busy_timeout(Duration::from_secs(30))
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(30))
         )
         .await?;
 
@@ -90,8 +90,8 @@ async fn setup_database() -> Result<SqlitePool> {
         )
         "#,
     )
-    .execute(&pool)
-    .await?;
+        .execute(&pool)
+        .await?;
 
     Ok(pool)
 }
@@ -101,7 +101,7 @@ fn get_server_addr() -> SocketAddr {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
-    
+
     SocketAddr::from(([0, 0, 0, 0], port))
 }
 
@@ -109,7 +109,7 @@ async fn handle_main_request(params: Option<Query<RenderParams>>) -> impl IntoRe
     let content = params
         .and_then(|p| p.0.content)
         .unwrap_or_else(|| "".to_string());
-    
+
     let markup = create_markdown_editor_page(&content).await;
     Html(markup.into_string())
 }
@@ -119,7 +119,7 @@ async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoRe
 
     let preview_markup = html! {
         div id="markdown-preview" {
-        br;
+            br;
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))
         }
@@ -158,10 +158,10 @@ async fn handle_view_request(
     let doc = sqlx::query_as::<_, MarkdownDocument>(
         "SELECT * FROM markdown_documents WHERE id = ? AND expires_at > datetime('now')"
     )
-    .bind(id)
-    .fetch_optional(&pool)
-    .await
-    .expect("Failed to fetch document");
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .expect("Failed to fetch document");
 
     match doc {
         Some(doc) => {
@@ -176,9 +176,9 @@ async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoRespon
     let docs = sqlx::query_as::<_, MarkdownDocument>(
         "SELECT * FROM markdown_documents ORDER BY created_at DESC LIMIT 5"
     )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
 
     let debug_markup = html! {
         div {
@@ -199,7 +199,7 @@ async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoRespon
 
 fn handle_404() -> Html<String> {
     Html(html! {
-        (create_html_head(Some("404")))
+        (create_html_head(Some("404")));
         body a="auto" {
             main class="content" aria-label="Content" {
                 div class="w" {
@@ -214,10 +214,10 @@ fn handle_404() -> Html<String> {
 }
 
 async fn save_markdown_document(
-    pool: &SqlitePool, 
-    id: &str, 
-    content: &str, 
-    created_at: DateTime<Utc>, 
+    pool: &SqlitePool,
+    id: &str,
+    content: &str,
+    created_at: DateTime<Utc>,
     expires_at: DateTime<Utc>
 ) {
     sqlx::query(
@@ -240,7 +240,7 @@ fn convert_markdown_to_html(markdown_content: &str) -> String {
     let parser = Parser::new_ext(markdown_content, markdown_options);
     let mut html_output = String::new();
     push_html(&mut html_output, parser);
-    
+
     add_syntax_highlighting_containers(html_output)
 }
 
@@ -294,7 +294,7 @@ fn create_page_footer() -> Markup {
 
 async fn create_markdown_editor_page(initial_content: &str) -> Markup {
     html! {
-        (create_html_head(None))
+        (create_html_head(None));
         body a="auto" {
             main class="content" aria-label="Content" {
                 div class="w" {
@@ -302,63 +302,64 @@ async fn create_markdown_editor_page(initial_content: &str) -> Markup {
                     p { dfn {"A meadow for your " b {"markdown on web."} } }
                     p { "Enter your markdown, preview it, and share it." }
                     div class="grid" {
-                        button 
-                            id="preview-button" 
-                            hx-post="/preview" 
-                            hx-trigger="click" 
+                        button
+                            id="preview-button"
+                            hx-post="/preview"
+                            hx-trigger="click"
                             hx-target="#markdown-input"
                             hx-swap="outerHTML"
-                            hx-include="#markdown-input" 
+                            hx-include="#markdown-input"
                             hx-validate="true"
-                            hx-disabled-elt="this" 
-                            _="on htmx:afterRequest 
-                               hide me 
+                            hx-disabled-elt="this"
+                            _="on htmx:afterRequest
+                               hide me
                                show #edit-button"
-                            { "Preview" }
+                               { "Preview" }
                         button
-                            id="edit-button" 
-                            hx-post="/edit" 
-                            hx-trigger="click" 
+                            id="edit-button"
+                            hx-post="/edit"
+                            hx-trigger="click"
                             hx-target="#markdown-preview"
-                            hx-swap="outerHTML" 
-                            hx-include="#markdown-preview" 
-                            style="display: none;" 
-                            _="on click 
-                               hide me 
+                            hx-swap="outerHTML"
+                            hx-include="#markdown-preview"
+                            style="display: none;"
+                            hx-disabled-elt="this"
+                            _="on htmx:afterRequest
+                               hide me
                                show #preview-button"
-                            { "Edit" }
-                        button 
+                               { "Edit" }
+                        button
                             id="share-button"
-                            hx-post="/share" 
-                            hx-trigger="click" 
-                            hx-include="[name='content']" 
+                            hx-post="/share"
+                            hx-trigger="click"
+                            hx-include="[name='content']"
                             hx-validate="true"
-                            hx-disabled-elt="this" 
+                            hx-disabled-elt="this"
                             { "Share" }
                     }
-                    textarea 
-                        id="markdown-input" 
-                        name="content" 
-                        placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" }) 
+                    textarea
+                        id="markdown-input"
+                        name="content"
+                        placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" })
                         style="width: 100%; height: calc(100vh - 275px); resize: none;"
                         required="required" {
-                        @if !initial_content.is_empty() {
-                            (initial_content)
+                            @if !initial_content.is_empty() {
+                                (initial_content)
+                            }
                         }
-                    }
                 }
             }
         }
-        (create_page_footer())
+        (create_page_footer());
     }
 }
 
 fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
     let html_output = convert_markdown_to_html(&doc.content);
     let page_title = extract_title_from_html(&html_output);
-    
+
     html! {
-        (create_html_head(page_title))
+        (create_html_head(page_title));
         body a="auto" {
             main class="content" aria-label="Content" {
                 div class="w" {
@@ -368,14 +369,14 @@ fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
             footer {
                 div class="w" {
                     {
-                        p { 
-                            "created on " (doc.created_at.format("%Y-%m-%d")) 
+                        p {
+                            "created on " (doc.created_at.format("%Y-%m-%d"))
                         }
                         p {
                             a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
                             " in "
-                            a href="/" { "mdow" } 
-                            " 🌾" 
+                            a href="/" { "mdow" }
+                            " 🌾"
                         }
                     }
                 }

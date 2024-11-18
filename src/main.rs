@@ -118,12 +118,11 @@ async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoRe
     let html_output = convert_markdown_to_html(&input.content);
 
     let preview_markup = html! {
-        div id="markdown-preview" {
+        div id="markdown-preview" _="on load call MathJax.typeset()" {
             br;
             input type="hidden" name="content" value=(encode_text(&input.content));
             (PreEscaped(html_output))
         }
-        script { "MathJax.typeset();" }
     };
 
     Html(preview_markup.into_string())
@@ -209,7 +208,7 @@ fn handle_404() -> Html<String> {
                 }
             }
         }
-        (create_page_footer())
+        (create_page_footer());
     }.into_string())
 }
 
@@ -370,7 +369,7 @@ fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
         (create_html_head(page_title));
         body a="auto" {
             main class="content" aria-label="Content" {
-                div class="w" {
+                div class="w" id="markdown-view" _="on load call MathJax.typeset()" {
                     (PreEscaped(html_output))
                 }
             }
@@ -389,7 +388,6 @@ fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
                     }
                 }
             }
-            script { "MathJax.typeset();" }
         }
     }
 }

@@ -1,10 +1,10 @@
 # mdow 🌾
 
-_A meadow for your **m**ark**d**own **o**n **w**eb._
+_A meadow for your **markdown on web**._
 
 A lightweight, browser-based markdown editor and previewer that makes sharing markdown files as simple as sharing a link.
 
-<button onclick="window.open('https://mdow.fly.dev', '_blank')">Try mdow 🌾</button>
+<button onclick="window.open('https://mdow.yree.io', '_blank')">Try mdow 🌾</button>
 
 ## Features ✨
 
@@ -31,7 +31,7 @@ cargo build
 cargo watch -x run
 ```
 
-Then open your browser and navigate to [http://localhost:8080](http://localhost:8080)
+Then open your browser and navigate to [http://localhost:8081](http://localhost:8081)
 
 ## Contributing 🤝
 

@@ -1,3 +1,4 @@
+use ammonia::clean;
 use axum::{
     extract::{Form, Path, Query, State},
     http::StatusCode,
@@ -8,8 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use maud::{html, Markup, PreEscaped};
 use pulldown_cmark::{html::push_html, Options, Parser};
-use qrcode::render::svg;
-use qrcode::QrCode;
+use qrcode::{render::svg, QrCode};
 use serde::Deserialize;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 use std::net::SocketAddr;
@@ -62,7 +62,6 @@ fn setup_router(pool: SqlitePool) -> Router {
         .route("/edit", post(handle_edit_request))
         .route("/share", post(handle_share_request))
         .route("/view/:id", get(handle_view_request))
-        .route("/debug", get(handle_debug_request))
         .fallback(|| async { (StatusCode::NOT_FOUND, handle_404()) })
         .with_state(pool)
 }
@@ -115,7 +114,8 @@ async fn handle_main_request(params: Option<Query<RenderParams>>) -> impl IntoRe
 }
 
 async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
-    let html_output = convert_markdown_to_html(&input.content);
+    let sanitized_content = clean(&input.content);
+    let html_output = convert_markdown_to_html(&sanitized_content);
 
     let preview_markup = html! {
         div id="markdown-preview" _="on load call MathJax.typeset()" {
@@ -145,10 +145,12 @@ async fn handle_share_request(
     let creation_time = Utc::now();
     let expiration_time = creation_time + chrono::Duration::days(DOCUMENT_EXPIRY_DAYS);
 
+    let sanitized_content = clean(&input.content);
+
     save_markdown_document(
         &pool,
         &document_id,
-        &input.content,
+        &sanitized_content,
         creation_time,
         expiration_time,
     )

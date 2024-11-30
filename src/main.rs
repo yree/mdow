@@ -6,7 +6,6 @@ use axum::{
     Router,
 };
 use chrono::{DateTime, Utc};
-use html_escape::encode_text;
 use maud::{html, Markup, PreEscaped};
 use pulldown_cmark::{html::push_html, Options, Parser};
 use qrcode::render::svg;
@@ -121,7 +120,7 @@ async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoRe
     let preview_markup = html! {
         div id="markdown-preview" _="on load call MathJax.typeset()" {
             br;
-            input type="hidden" name="content" value=(encode_text(&input.content));
+            input type="hidden" name="content" value=(&input.content);
             (PreEscaped(html_output))
         }
     };

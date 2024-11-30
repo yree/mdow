@@ -1,20 +1,22 @@
 use axum::{
-    http::StatusCode,
     extract::{Form, Path, Query, State},
+    http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, post},
     Router,
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
-use maud::{html, Markup, PreEscaped};
-use std::net::SocketAddr;
-use serde::Deserialize;
-use pulldown_cmark::{Parser, Options, html::push_html};
+use chrono::{DateTime, Utc};
 use html_escape::encode_text;
-use uuid::Uuid;
+use maud::{html, Markup, PreEscaped};
+use pulldown_cmark::{html::push_html, Options, Parser};
+use qrcode::render::svg;
+use qrcode::QrCode;
+use serde::Deserialize;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
-use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 const DEFAULT_PORT: u16 = 8081;
 const DEFAULT_DB_PATH: &str = "sqlite:data/database.db";
@@ -374,8 +376,9 @@ fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
                 }
             }
             footer {
-                div class="w" {
-                    {
+                div class="w grid" {
+                    (PreEscaped(generate_qr_svg(&doc.id)))
+                    div {
                         p {
                             "created on " (doc.created_at.format("%Y-%m-%d"))
                         }
@@ -400,4 +403,11 @@ fn create_htmx_redirect_response(document_id: &str) -> impl IntoResponse {
 
 fn generate_short_uuid() -> String {
     Uuid::new_v4().to_string()[..7].to_string()
+}
+
+fn generate_qr_svg(id: &str) -> String {
+    let url = format!("https://mdow.yree.io/view/{}", id);
+    let code = QrCode::new(url).expect("Failed to generate QR code");
+    let svg = code.render::<svg::Color>().min_dimensions(64, 64).build();
+    svg
 }

@@ -69,16 +69,15 @@ fn setup_router(pool: SqlitePool) -> Router {
 }
 
 async fn setup_database() -> Result<SqlitePool> {
-    let db_path = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
+    let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(
             SqliteConnectOptions::from_str(&db_path)?
-            .create_if_missing(true)
-            .journal_mode(SqliteJournalMode::Wal)
-            .busy_timeout(Duration::from_secs(30))
+                .create_if_missing(true)
+                .journal_mode(SqliteJournalMode::Wal)
+                .busy_timeout(Duration::from_secs(30)),
         )
         .await?;
 
@@ -92,8 +91,8 @@ async fn setup_database() -> Result<SqlitePool> {
         )
         "#,
     )
-        .execute(&pool)
-        .await?;
+    .execute(&pool)
+    .await?;
 
     Ok(pool)
 }
@@ -147,7 +146,14 @@ async fn handle_share_request(
     let creation_time = Utc::now();
     let expiration_time = creation_time + chrono::Duration::days(DOCUMENT_EXPIRY_DAYS);
 
-    save_markdown_document(&pool, &document_id, &input.content, creation_time, expiration_time).await;
+    save_markdown_document(
+        &pool,
+        &document_id,
+        &input.content,
+        creation_time,
+        expiration_time,
+    )
+    .await;
 
     create_htmx_redirect_response(&document_id)
 }
@@ -157,29 +163,29 @@ async fn handle_view_request(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     let doc = sqlx::query_as::<_, MarkdownDocument>(
-        "SELECT * FROM markdown_documents WHERE id = ? AND expires_at > datetime('now')"
+        "SELECT * FROM markdown_documents WHERE id = ? AND expires_at > datetime('now')",
     )
-        .bind(id)
-        .fetch_optional(&pool)
-        .await
-        .expect("Failed to fetch document");
+    .bind(id)
+    .fetch_optional(&pool)
+    .await
+    .expect("Failed to fetch document");
 
     match doc {
         Some(doc) => {
             let markup = create_markdown_viewer_page(&doc);
             Html(markup.into_string())
-        },
-        None => handle_404()
+        }
+        None => handle_404(),
     }
 }
 
 async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoResponse {
     let docs = sqlx::query_as::<_, MarkdownDocument>(
-        "SELECT * FROM markdown_documents ORDER BY created_at DESC LIMIT 5"
+        "SELECT * FROM markdown_documents ORDER BY created_at DESC LIMIT 5",
     )
-        .fetch_all(&pool)
-        .await
-        .unwrap_or_default();
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
 
     let debug_markup = html! {
         div {
@@ -199,19 +205,22 @@ async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoRespon
 }
 
 fn handle_404() -> Html<String> {
-    Html(html! {
-        (create_html_head(Some("404")));
-        body a="auto" {
-            main class="content" aria-label="Content" {
-                div class="w" {
-                    h1 { "404 - Page Not Found" }
-                    p { "The page you're looking for doesn't exist." }
-                    p { a href="/" { "Return to homepage" } }
+    Html(
+        html! {
+            (create_html_head(Some("404")));
+            body a="auto" {
+                main class="content" aria-label="Content" {
+                    div class="w" {
+                        h1 { "404 - Page Not Found" }
+                        p { "The page you're looking for doesn't exist." }
+                        p { a href="/" { "Return to homepage" } }
+                    }
                 }
             }
+            (create_page_footer());
         }
-        (create_page_footer());
-    }.into_string())
+        .into_string(),
+    )
 }
 
 async fn save_markdown_document(
@@ -219,7 +228,7 @@ async fn save_markdown_document(
     id: &str,
     content: &str,
     created_at: DateTime<Utc>,
-    expires_at: DateTime<Utc>
+    expires_at: DateTime<Utc>,
 ) {
     sqlx::query(
         r#"
@@ -259,13 +268,11 @@ fn add_syntax_highlighting_containers(html: String) -> String {
 }
 
 fn extract_title_from_html(html_content: &str) -> Option<&str> {
-    html_content
-        .find("<h1>")
-        .and_then(|start| {
-            html_content[start..]
-                .find("</h1>")
-                .map(|end| &html_content[start + 4..start + end])
-        })
+    html_content.find("<h1>").and_then(|start| {
+        html_content[start..]
+            .find("</h1>")
+            .map(|end| &html_content[start + 4..start + end])
+    })
 }
 
 fn create_html_head(page_title: Option<&str>) -> Markup {
@@ -397,7 +404,10 @@ fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
 
 fn create_htmx_redirect_response(document_id: &str) -> impl IntoResponse {
     let mut headers = axum::http::HeaderMap::new();
-    headers.insert("hx-redirect", format!("/view/{}", document_id).parse().unwrap());
+    headers.insert(
+        "hx-redirect",
+        format!("/view/{}", document_id).parse().unwrap(),
+    );
     (headers, "")
 }
 

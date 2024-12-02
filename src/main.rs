@@ -279,14 +279,33 @@ fn extract_title_from_html(html_content: &str) -> Option<&str> {
 fn create_html_head(page_title: Option<&str>) -> Markup {
     html! {
         head {
-            title { (page_title.unwrap_or("mdow")) }
+            title { (page_title.unwrap_or("mdow")) };
+
             meta charset="utf-8";
             meta name="viewport" content="width=device-width, initial-scale=1";
+
+            meta name="title" content="mdow 🌾 | markdown on web";
+            meta name="description" content="A meadow for your markdown on web. A lightweight, browser-based markdown editor and previewer that makes sharing markdown files as simple as sharing a link.";
+            meta name="keywords" content="markdown editor, online markdown, markdown preview, markdown sharing, web markdown, browser markdown";
+
+            meta name="application-name" content="mdow";
+            meta name="mobile-web-app-capable" content="yes";
+            meta name="apple-mobile-web-app-capable" content="yes";
+            meta name="apple-mobile-web-app-title" content="mdow";
+            meta name="apple-mobile-web-app-status-bar-style" content="default";
+            meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)";
+            meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)";
+
+            link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>";
+
             link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>";
             link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
-            script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {}
-            script src="https://unpkg.com/htmx.org@1.9.10" {}
-            script src="https://unpkg.com/hyperscript.org@0.9.12" {}
+
+            script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {};
+            script src="https://unpkg.com/htmx.org@1.9.10" {};
+            script src="https://unpkg.com/hyperscript.org@0.9.12" {};
+
+            script data-goatcounter="https://yree.goatcounter.com/count" async src="//gc.zgo.at/count.js" {};
         }
     }
 }

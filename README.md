@@ -13,7 +13,7 @@ A lightweight, browser-based markdown editor and previewer that makes sharing ma
 - 🚀 Fast and lightweight
 - 💻 Simple local development setup
 
-## Development 🏗️
+## Development 🏗
 
 1. Clone the repository
 ```bash

@@ -9,7 +9,8 @@ pub async fn setup_database() -> Result<SqlitePool> {
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(
-            SqliteConnectOptions::from_str(&db_path)?
+            SqliteConnectOptions::new()
+                .filename(&db_path)
                 .create_if_missing(true)
                 .journal_mode(SqliteJournalMode::Wal)
                 .busy_timeout(Duration::from_secs(30)),

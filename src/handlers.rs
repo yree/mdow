@@ -1,4 +1,4 @@
-use maud::html;
+use maud::{html, PreEscaped};
 use axum::{
     extract::{Form, Path, Query, State},
     http::StatusCode,

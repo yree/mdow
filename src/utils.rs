@@ -6,7 +6,7 @@ use qrcode::{render::svg, QrCode};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use axum::response::Html;
-use crate::{MarkdownDocument, MarkdownInput};
+use crate::models::{MarkdownDocument, MarkdownInput};
 
 pub fn clean(content: &str) -> String {
     ammonia::clean(content)

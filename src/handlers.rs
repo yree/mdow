@@ -1,3 +1,4 @@
+use maud::html;
 use axum::{
     extract::{Form, Path, Query, State},
     http::StatusCode,

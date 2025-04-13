@@ -1,5 +1,7 @@
 
 use crate::Result;
+use sqlx::{SqlitePool, SqlitePoolOptions, SqliteConnectOptions, SqliteJournalMode};
+use std::time::Duration;
 
 pub async fn setup_database() -> Result<SqlitePool> {
     let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| super::DEFAULT_DB_PATH.to_string());

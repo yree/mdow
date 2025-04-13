@@ -1,3 +1,4 @@
+use axum::response::IntoResponse;
 use maud::{html, Markup, PreEscaped};
 use pulldown_cmark::{html::push_html, Options, Parser};
 use qrcode::{render::svg, QrCode};

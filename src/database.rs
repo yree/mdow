@@ -1,6 +1,6 @@
 
 use crate::Result;
-use sqlx::{SqlitePool, SqlitePoolOptions, SqliteConnectOptions, SqliteJournalMode};
+use sqlx::{sqlite::{SqlitePool, SqliteConnectOptions, SqliteJournalMode}, pool::PoolOptions as SqlitePoolOptions};
 use std::time::Duration;
 
 pub async fn setup_database() -> Result<SqlitePool> {

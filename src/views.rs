@@ -40,7 +40,15 @@ pub fn create_page_footer() -> Markup {
     html! {
         footer {
             div class="w" {
-                p { a href="https://yree.io/mdow" { "mdow" } " 🌾 — a " a href="https://yree.io" { "Yree" } " product ♥" }
+                p style="display: flex; justify-content: space-between; margin: 0;" {
+                    span {
+                        a href="https://yree.io/mdow" { "mdow" }
+                        " 🌾 — a "
+                        a href="https://yree.io" { "Yree" }
+                        " product ♥ "
+                    }
+                    kbd { "?" }
+                }
             }
         }
     }

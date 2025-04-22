@@ -18,8 +18,8 @@ use sqlx::sqlite::SqlitePool;
 use std::net::SocketAddr;
 
 const DEFAULT_PORT: u16 = 8081;
-// const DEFAULT_DB_PATH: &str = "sqlite:data/database.db";
-const DEFAULT_DB_PATH: &str = "test.db";
+const DEFAULT_DB_PATH: &str = "sqlite:data/database.db";
+// const DEFAULT_DB_PATH: &str = "test.db";
 const DOCUMENT_EXPIRY_DAYS: i64 = 30;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;

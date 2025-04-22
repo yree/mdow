@@ -2,12 +2,13 @@ mod database;
 mod handlers;
 mod utils;
 mod models;
+mod views;
 
 use crate::database::setup_database;
 use crate::handlers::{handle_main_request, handle_preview_request, handle_edit_request, handle_share_request, handle_view_request};
 use crate::models::{MarkdownInput, MarkdownDocument, RenderParams};
-use crate::utils::{save_markdown_document, generate_short_uuid, create_htmx_redirect_response, clean, convert_markdown_to_html};
-use crate::views::{create_markdown_editor_page, create_markdown_viewer_page, create_404_page};
+use crate::utils::{save_markdown_document, generate_short_uuid, create_htmx_redirect_response, clean, convert_markdown_to_html, handle_404};
+use crate::views::{create_markdown_editor_page, create_markdown_viewer_page};
 use axum::{
     http::StatusCode,
     routing::{get, post},

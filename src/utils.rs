@@ -6,7 +6,7 @@ use qrcode::{render::svg, QrCode};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use axum::response::Html;
-use crate::models::{MarkdownDocument, MarkdownInput};
+use crate::models::MarkdownDocument;
 
 pub fn clean(content: &str) -> String {
     ammonia::clean(content)
@@ -80,7 +80,7 @@ pub fn create_page_footer() -> Markup {
     html! {
         footer {
             div class="w" {
-                p { a href="https://yree.io/mdow" { "mdow" } " 🌾 :: a " a href="https://yree.io" { "Yree" } " product ♥" }
+                p { a href="https://yree.io/mdow" { "mdow" } " 🌾 — a " a href="https://yree.io" { "Yree" } " product ♥" }
             }
         }
     }
@@ -135,7 +135,7 @@ pub async fn create_markdown_editor_page(initial_content: &str) -> Markup {
                         id="markdown-input"
                         name="content"
                         placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" })
-                        style="width: 100%; height: calc(100vh - 275px); resize: none;"
+                        style="width: 100%; height: 30ch; resize: vertical"
                         required="required"
                         _=(if initial_content.is_empty() {
                             "on load

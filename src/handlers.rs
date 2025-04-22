@@ -1,10 +1,9 @@
 use maud::{html, PreEscaped};
 use axum::{
     extract::{Form, Path, Query, State},
-    http::StatusCode,
     response::{Html, IntoResponse},
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use sqlx::SqlitePool;
 use crate::{MarkdownDocument, MarkdownInput, RenderParams, create_markdown_editor_page, create_markdown_viewer_page, handle_404, save_markdown_document, generate_short_uuid, create_htmx_redirect_response, clean, convert_markdown_to_html};
 
@@ -34,7 +33,7 @@ pub async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl In
 
 pub async fn handle_edit_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     let edit_markup = html! {
-        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: calc(100vh - 275px); resize: none;" {
+        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="width: 100%; height: 30ch; resize: vertical;" {
             (input.content)
         }
     };
@@ -82,29 +81,4 @@ pub async fn handle_view_request(
         }
         None => handle_404(),
     }
-}
-
-pub async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoResponse {
-    let docs = sqlx::query_as::<_, MarkdownDocument>(
-        "SELECT * FROM markdown_documents ORDER BY created_at DESC LIMIT 5",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
-
-    let debug_markup = html! {
-        div {
-            h2 { "Recent Documents" }
-            @for doc in docs {
-                div style="margin-bottom: 2ch; padding: 1ch; border: 1px solid #ccc;" {
-                    p { "ID: " (doc.id) }
-                    p { "Created: " (doc.created_at.format("%Y-%m-%d")) }
-                    p { "Expires: " (doc.expires_at.format("%Y-%m-%d")) }
-                    p { "Content: " (doc.content) }
-                }
-            }
-        }
-    };
-
-    Html(debug_markup.into_string())
 }

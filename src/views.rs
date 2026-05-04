@@ -68,25 +68,23 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
                             id="preview-button"
                             hx-post="/preview"
                             hx-trigger="click"
-                            hx-target="#markdown-input"
-                            hx-swap="outerHTML"
+                            hx-target="#markdown-preview"
+                            hx-swap="innerHTML"
                             hx-include="#markdown-input"
                             hx-validate="true"
                             hx-disabled-elt="this"
                             _="on htmx:afterRequest
+                               hide #markdown-input
+                               show #markdown-preview
                                hide me
                                show #edit-button"
                                { "Preview" }
                         button
                             id="edit-button"
-                            hx-post="/edit"
-                            hx-trigger="click"
-                            hx-target="#markdown-preview"
-                            hx-swap="outerHTML"
-                            hx-include="#markdown-preview"
                             style="display: none;"
-                            hx-disabled-elt="this"
-                            _="on htmx:afterRequest
+                            _="on click
+                               hide #markdown-preview
+                               show #markdown-input
                                hide me
                                show #preview-button"
                                { "Edit" }
@@ -94,7 +92,7 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
                             id="share-button"
                             hx-post="/share"
                             hx-trigger="click"
-                            hx-include="[name='content']"
+                            hx-include="#markdown-input"
                             hx-validate="true"
                             hx-disabled-elt="this"
                             { "Share" }
@@ -117,6 +115,7 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
                                 call localStorage.setItem('markdownContent', my.value)"
                         })
                         { (initial_content) }
+                    div id="markdown-preview" style="display: none; height: calc(100vh - 275px); overflow-y: auto;" {}
                 }
             }
         }

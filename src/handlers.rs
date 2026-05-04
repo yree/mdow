@@ -21,25 +21,12 @@ pub async fn handle_main_request(params: Option<Query<RenderParams>>) -> impl In
 
 pub async fn handle_preview_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
     let html_output = convert_markdown_to_html(&input.content);
-
-    let preview_markup = html! {
-        div id="markdown-preview" _="on load call MathJax.typeset()" {
-            br;
-            input type="hidden" name="content" value=(&input.content);
+    let markup = html! {
+        div _="on load call MathJax.typeset()" {
             (PreEscaped(html_output))
         }
     };
-
-    Html(preview_markup.into_string())
-}
-
-pub async fn handle_edit_request(Form(input): Form<MarkdownInput>) -> impl IntoResponse {
-    let edit_markup = html! {
-        textarea id="markdown-input" name="content" placeholder="Enter your markdown..." style="height: calc(100vh - 275px); resize: none;" {
-            (input.content)
-        }
-    };
-    Html(edit_markup.into_string())
+    Html(markup.into_string())
 }
 
 pub async fn handle_share_request(

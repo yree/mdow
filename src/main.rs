@@ -5,7 +5,7 @@ mod models;
 mod views;
 
 use crate::database::setup_database;
-use crate::handlers::{handle_main_request, handle_preview_request, handle_edit_request, handle_share_request, handle_view_request, handle_debug_request};
+use crate::handlers::{handle_main_request, handle_preview_request, handle_share_request, handle_view_request, handle_debug_request};
 use crate::utils::handle_404;
 use axum::{
     http::StatusCode,
@@ -39,7 +39,6 @@ fn setup_router(pool: SqlitePool) -> Router {
     Router::new()
         .route("/", get(handle_main_request))
         .route("/preview", post(handle_preview_request))
-        .route("/edit", post(handle_edit_request))
         .route("/share", post(handle_share_request))
         .route("/view/:id", get(handle_view_request))
         .route("/debug", get(handle_debug_request))

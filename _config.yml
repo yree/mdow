@@ -9,3 +9,5 @@ baseurl: /mdow
 git_repo: yree/mdow
 
 remote_theme: yree/mold
+
+goat_counter: yree

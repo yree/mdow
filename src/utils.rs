@@ -58,10 +58,11 @@ pub fn generate_qr_svg(id: &str) -> String {
     code.render::<svg::Color>().min_dimensions(64, 64).build()
 }
 
-pub async fn save_document(pool: &SqlitePool, id: &str, content: &str) -> Result<()> {
-    sqlx::query("INSERT INTO documents (id, content) VALUES (?, ?)")
+pub async fn save_document(pool: &SqlitePool, id: &str, content: &str, days: i64) -> Result<()> {
+    sqlx::query("INSERT INTO documents (id, content, days) VALUES (?, ?, ?)")
         .bind(id)
         .bind(content)
+        .bind(days)
         .execute(pool)
         .await?;
     Ok(())

@@ -70,11 +70,50 @@ pub fn create_help_dialog() -> Markup {
     }
 }
 
+pub fn create_settings_dialog() -> Markup {
+    html! {
+        dialog id="settings-dialog"
+            _="on click
+                 set r to my.getBoundingClientRect()
+                 if event.clientX < r.left or event.clientX > r.right
+                    or event.clientY < r.top or event.clientY > r.bottom
+                   call me.close()" {
+            h3 { "Share settings" }
+            label {
+                "Password"
+                input type="password" id="settings-password" name="password"
+                    placeholder="none" autocomplete="new-password";
+            }
+            label {
+                "Days active"
+                input type="number" id="settings-days" name="days"
+                    value="31" min="1" max="365"
+                    _="on input if (my.value as Int) > 365 then set my.value to 365
+                                else if (my.value as Int) < 1 then set my.value to 1";
+            }
+            label {
+                input type="checkbox" id="settings-tracking" name="tracking";
+                " Track unique views"
+            }
+            div class="grid" {
+                button _="on click call #settings-dialog.close()" { "Cancel" }
+                button _="on click
+                           set #share-days.value to #settings-days.value
+                           set #share-password.value to #settings-password.value
+                           call #settings-dialog.close()" { "Save" }
+            }
+        }
+    }
+}
+
 pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
     html! {
         (create_html_head(None));
         body a="auto" {
             (create_help_dialog())
+            (create_settings_dialog())
+            input type="hidden" id="share-days" name="days" value="31";
+            input type="hidden" id="share-password" name="password" value="";
             main aria-label="Content" style="display: flex; flex-direction: column;" {
                 div class="grid" {
                     button
@@ -102,10 +141,16 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
                            show #preview-button"
                            { "Edit" }
                     button
+                        id="settings-button"
+                        _="on click
+                           set #settings-days.value to #share-days.value
+                           set #settings-password.value to #share-password.value
+                           call #settings-dialog.showModal()" { "⚙️" }
+                    button
                         id="share-button"
                         hx-post="/share"
                         hx-trigger="click"
-                        hx-include="#markdown-input"
+                        hx-include="#markdown-input, #share-days, #share-password"
                         hx-validate="true"
                         hx-disabled-elt="this"
                         { "Share" }

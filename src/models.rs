@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 pub struct MarkdownInput {
     pub content: String,
+    pub days: Option<i64>,
 }
 
 #[derive(sqlx::FromRow)]

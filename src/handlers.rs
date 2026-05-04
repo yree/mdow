@@ -46,8 +46,9 @@ pub async fn handle_share_request(
     Form(input): Form<MarkdownInput>,
 ) -> Response {
     let document_id = generate_short_uuid();
+    let days = input.days.unwrap_or(31).clamp(1, 365);
 
-    if save_document(&pool, &document_id, &input.content)
+    if save_document(&pool, &document_id, &input.content, days)
         .await
         .is_err()
     {

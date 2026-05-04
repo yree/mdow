@@ -11,7 +11,6 @@ pub struct MarkdownDocument {
     pub id: String,
     pub content: String,
     pub created_at: DateTime<Utc>,
-    pub expires_at:  DateTime<Utc>,
 }
 
 #[derive(Deserialize)]

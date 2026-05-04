@@ -6,9 +6,7 @@ mod views;
 
 use crate::database::setup_database;
 use crate::handlers::{handle_main_request, handle_preview_request, handle_edit_request, handle_share_request, handle_view_request};
-use crate::models::{MarkdownInput, MarkdownDocument, RenderParams};
-use crate::utils::{save_markdown_document, generate_short_uuid, create_htmx_redirect_response, clean, convert_markdown_to_html, handle_404};
-use crate::views::{create_markdown_editor_page, create_markdown_viewer_page};
+use crate::utils::handle_404;
 use axum::{
     http::StatusCode,
     routing::{get, post},
@@ -19,7 +17,6 @@ use std::net::SocketAddr;
 
 const DEFAULT_PORT: u16 = 8081;
 const DEFAULT_DB_PATH: &str = "sqlite:data/database.db";
-// const DEFAULT_DB_PATH: &str = "test.db";
 const DOCUMENT_EXPIRY_DAYS: i64 = 30;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;

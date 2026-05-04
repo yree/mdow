@@ -1,15 +1,15 @@
 use crate::Result;
 use sqlx::{sqlite::{SqlitePool, SqliteConnectOptions, SqliteJournalMode}, pool::PoolOptions as SqlitePoolOptions};
+use std::str::FromStr;
 use std::time::Duration;
 
 pub async fn setup_database() -> Result<SqlitePool> {
-    let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| super::DEFAULT_DB_PATH.to_string());
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| super::DEFAULT_DB_PATH.to_string());
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(
-            SqliteConnectOptions::new()
-                .filename(&db_path)
+            SqliteConnectOptions::from_str(&db_url)?
                 .create_if_missing(true)
                 .journal_mode(SqliteJournalMode::Wal)
                 .busy_timeout(Duration::from_secs(30)),

@@ -1,12 +1,12 @@
-use axum::response::IntoResponse;
 use sqlx::SqlitePool;
 use pulldown_cmark::{html::push_html, Options, Parser};
 use qrcode::{render::svg, QrCode};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use axum::response::Html;
+use axum::response::{Html, IntoResponse};
+use crate::Result;
 
-pub fn clean(content: &str) -> String {
+fn clean(content: &str) -> String {
     ammonia::clean(content)
 }
 
@@ -15,8 +15,8 @@ pub fn convert_markdown_to_html(markdown_content: &str) -> String {
     let parser = Parser::new_ext(markdown_content, markdown_options);
     let mut html_output = String::new();
     push_html(&mut html_output, parser);
-
-    add_syntax_highlighting_containers(html_output)
+    let html_output = add_syntax_highlighting_containers(html_output);
+    clean(&html_output)
 }
 
 fn set_markdown_parser_options() -> Options {
@@ -50,7 +50,7 @@ pub fn create_htmx_redirect_response(document_id: &str) -> impl IntoResponse {
 }
 
 pub fn generate_short_uuid() -> String {
-    Uuid::new_v4().to_string()[..7].to_string()
+    Uuid::new_v4().to_string()[..8].to_string()
 }
 
 pub fn generate_qr_svg(id: &str) -> String {
@@ -66,7 +66,7 @@ pub async fn save_markdown_document(
     content: &str,
     created_at: DateTime<Utc>,
     expires_at: DateTime<Utc>,
-) {
+) -> Result<()> {
     sqlx::query(
         r#"
         INSERT INTO markdown_documents (id, content, created_at, expires_at)
@@ -78,8 +78,8 @@ pub async fn save_markdown_document(
     .bind(created_at)
     .bind(expires_at)
     .execute(pool)
-    .await
-    .expect("Failed to save document");
+    .await?;
+    Ok(())
 }
 
 pub fn handle_404() -> Html<String> {

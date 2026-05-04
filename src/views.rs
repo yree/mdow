@@ -54,7 +54,7 @@ pub fn create_page_footer() -> Markup {
     }
 }
 
-pub async fn create_markdown_editor_page(initial_content: &str) -> Markup {
+pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
     html! {
         (create_html_head(None));
         body a="auto" {
@@ -103,7 +103,7 @@ pub async fn create_markdown_editor_page(initial_content: &str) -> Markup {
                         id="markdown-input"
                         name="content"
                         placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" })
-                        style="width: 100%; height: 30ch; resize: vertical"
+                        style="height: 30ch; resize: vertical"
                         required="required"
                         _=(if initial_content.is_empty() {
                             "on load

@@ -1,5 +1,6 @@
 use maud::{html, Markup, PreEscaped};
-use crate::models::MarkdownDocument;
+use chrono::Duration;
+use crate::models::Document;
 use crate::utils::{convert_markdown_to_html, extract_title_from_html, generate_qr_svg};
 
 pub fn create_html_head(page_title: Option<&str>) -> Markup {
@@ -44,7 +45,27 @@ pub fn create_page_footer() -> Markup {
                 a href="https://yree.io" { "Yree" }
                 " product ♥ "
             }
-            kbd { "?" }
+            kbd _="on click call #help-dialog.showModal()" { "?" }
+        }
+    }
+}
+
+pub fn create_help_dialog() -> Markup {
+    html! {
+        dialog
+            id="help-dialog"
+            _="on load
+                 if localStorage.getItem('mdow-visited') is null
+                   call me.showModal()
+                   call localStorage.setItem('mdow-visited', 'true')
+               on click
+                 if event.target is me then call me.close()" {
+            h2 { "mdow 🌾" }
+            p { "A meadow for your " b { "markdown on web." } }
+            hr;
+            p { "Write markdown, preview it, and share it as a link. Links stay active for " b { "30 days." } }
+            p { b { "Supports:" } " tables, task lists, strikethrough, LaTeX math, syntax highlighting." }
+            button _="on click call #help-dialog.close()" { "Got it" }
         }
     }
 }
@@ -53,10 +74,8 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
     html! {
         (create_html_head(None));
         body a="auto" {
+            (create_help_dialog())
             main aria-label="Content" style="display: flex; flex-direction: column;" {
-                h1 { "mdow 🌾" }
-                p { dfn { "A meadow for your " b { "markdown on web." } } }
-                p { "Enter your markdown, preview it, and share it." }
                 div class="grid" {
                     button
                         id="preview-button"
@@ -116,9 +135,10 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
     }
 }
 
-pub fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
+pub fn create_markdown_viewer_page(doc: &Document) -> Markup {
     let html_output = convert_markdown_to_html(&doc.content);
     let page_title = extract_title_from_html(&html_output);
+    let expires_at = doc.created_at + Duration::days(doc.days);
 
     html! {
         (create_html_head(page_title));
@@ -128,9 +148,9 @@ pub fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
             }
             footer class="grid" {
                 div {
-                    p { "created on " (doc.created_at.format("%Y-%m-%d")) }
+                    p { "expires " (expires_at.format("%Y-%m-%d")) }
                     p {
-                        a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
+                        a href=(format!("/?id={}", doc.id)) { "edit" }
                         " in "
                         a href="/" { "mdow" }
                         " 🌾"

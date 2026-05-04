@@ -4,16 +4,28 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
-use chrono::Utc;
 use sqlx::SqlitePool;
-use crate::models::{MarkdownDocument, MarkdownInput, RenderParams};
+use crate::models::{Document, MarkdownInput, RenderParams};
 use crate::views::{create_markdown_editor_page, create_markdown_viewer_page};
-use crate::utils::{handle_404, save_markdown_document, generate_short_uuid, create_htmx_redirect_response, convert_markdown_to_html};
+use crate::utils::{handle_404, save_document, generate_short_uuid, create_htmx_redirect_response, convert_markdown_to_html};
 
-pub async fn handle_main_request(params: Option<Query<RenderParams>>) -> impl IntoResponse {
-    let content = params
-        .and_then(|p| p.0.content)
-        .unwrap_or_else(|| "".to_string());
+pub async fn handle_main_request(
+    State(pool): State<SqlitePool>,
+    params: Option<Query<RenderParams>>,
+) -> impl IntoResponse {
+    let content = match params.as_ref().and_then(|p| p.0.id.as_deref()) {
+        Some(id) => sqlx::query_as::<_, Document>(
+            "SELECT * FROM documents WHERE id = ? AND datetime(created_at, '+' || days || ' days') > datetime('now')",
+        )
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .ok()
+        .flatten()
+        .map(|doc| doc.content)
+        .unwrap_or_default(),
+        None => params.and_then(|p| p.0.content).unwrap_or_default(),
+    };
 
     let markup = create_markdown_editor_page(&content);
     Html(markup.into_string())
@@ -34,18 +46,10 @@ pub async fn handle_share_request(
     Form(input): Form<MarkdownInput>,
 ) -> Response {
     let document_id = generate_short_uuid();
-    let creation_time = Utc::now();
-    let expiration_time = creation_time + chrono::Duration::days(super::DOCUMENT_EXPIRY_DAYS);
 
-    if save_markdown_document(
-        &pool,
-        &document_id,
-        &input.content,
-        creation_time,
-        expiration_time,
-    )
-    .await
-    .is_err()
+    if save_document(&pool, &document_id, &input.content)
+        .await
+        .is_err()
     {
         return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to save document").into_response();
     }
@@ -54,8 +58,8 @@ pub async fn handle_share_request(
 }
 
 pub async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoResponse {
-    let docs = sqlx::query_as::<_, MarkdownDocument>(
-        "SELECT id, content, created_at FROM markdown_documents ORDER BY created_at DESC LIMIT 5",
+    let docs = sqlx::query_as::<_, Document>(
+        "SELECT * FROM documents ORDER BY created_at DESC LIMIT 5",
     )
     .fetch_all(&pool)
     .await
@@ -68,6 +72,8 @@ pub async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoRe
                 div style="margin-bottom: 2ch; padding: 1ch; border: .2ch solid #000;" {
                     p { "ID: " (doc.id) }
                     p { "Created: " (doc.created_at.format("%Y-%m-%d")) }
+                    p { "Days: " (doc.days) }
+                    p { "Views: " (doc.views) }
                     p { "Content: " (doc.content) }
                 }
             }
@@ -81,8 +87,8 @@ pub async fn handle_view_request(
     State(pool): State<SqlitePool>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let doc = sqlx::query_as::<_, MarkdownDocument>(
-        "SELECT id, content, created_at FROM markdown_documents WHERE id = ? AND expires_at > datetime('now')",
+    let doc = sqlx::query_as::<_, Document>(
+        "SELECT * FROM documents WHERE id = ? AND datetime(created_at, '+' || days || ' days') > datetime('now')",
     )
     .bind(id)
     .fetch_optional(&pool)

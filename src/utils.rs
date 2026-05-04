@@ -2,7 +2,6 @@ use sqlx::SqlitePool;
 use pulldown_cmark::{html::push_html, Options, Parser};
 use qrcode::{render::svg, QrCode};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use axum::response::{Html, IntoResponse};
 use crate::Result;
 
@@ -56,29 +55,15 @@ pub fn generate_short_uuid() -> String {
 pub fn generate_qr_svg(id: &str) -> String {
     let url = format!("https://mdow.yree.io/view/{}", id);
     let code = QrCode::new(url).expect("Failed to generate QR code");
-    let svg = code.render::<svg::Color>().min_dimensions(64, 64).build();
-    svg
+    code.render::<svg::Color>().min_dimensions(64, 64).build()
 }
 
-pub async fn save_markdown_document(
-    pool: &SqlitePool,
-    id: &str,
-    content: &str,
-    created_at: DateTime<Utc>,
-    expires_at: DateTime<Utc>,
-) -> Result<()> {
-    sqlx::query(
-        r#"
-        INSERT INTO markdown_documents (id, content, created_at, expires_at)
-        VALUES (?, ?, ?, ?)
-        "#,
-    )
-    .bind(id)
-    .bind(content)
-    .bind(created_at)
-    .bind(expires_at)
-    .execute(pool)
-    .await?;
+pub async fn save_document(pool: &SqlitePool, id: &str, content: &str) -> Result<()> {
+    sqlx::query("INSERT INTO documents (id, content) VALUES (?, ?)")
+        .bind(id)
+        .bind(content)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

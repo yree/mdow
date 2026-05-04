@@ -18,11 +18,13 @@ pub async fn setup_database() -> Result<SqlitePool> {
 
     sqlx::query(
         r#"
-        CREATE TABLE IF NOT EXISTS markdown_documents (
+        CREATE TABLE IF NOT EXISTS documents (
             id TEXT PRIMARY KEY,
             content TEXT NOT NULL,
-            created_at DATETIME NOT NULL,
-            expires_at DATETIME NOT NULL
+            created_at DATETIME NOT NULL DEFAULT (datetime('now')),
+            days INTEGER NOT NULL DEFAULT 30,
+            views INTEGER NOT NULL DEFAULT 0,
+            password TEXT
         )
         "#,
     )

@@ -23,7 +23,6 @@ pub fn create_html_head(page_title: Option<&str>) -> Markup {
             meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)";
 
             link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>";
-
             link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>";
             link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
 
@@ -38,18 +37,14 @@ pub fn create_html_head(page_title: Option<&str>) -> Markup {
 
 pub fn create_page_footer() -> Markup {
     html! {
-        footer {
-            div class="w" {
-                p style="display: flex; justify-content: space-between; margin: 0;" {
-                    span {
-                        a href="https://yree.io/mdow" { "mdow" }
-                        " 🌾 — a "
-                        a href="https://yree.io" { "Yree" }
-                        " product ♥ "
-                    }
-                    kbd { "?" }
-                }
+        footer style="display: flex; justify-content: space-between;" {
+            span {
+                a href="https://yree.io/mdow" { "mdow" }
+                " 🌾 — a "
+                a href="https://yree.io" { "Yree" }
+                " product ♥ "
             }
+            kbd { "?" }
         }
     }
 }
@@ -58,68 +53,66 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
     html! {
         (create_html_head(None));
         body a="auto" {
-            main class="content" aria-label="Content" {
-                div class="w" {
-                    h1 { "mdow 🌾" }
-                    p { dfn {"A meadow for your " b {"markdown on web."} } }
-                    p { "Enter your markdown, preview it, and share it." }
-                    div class="grid" {
-                        button
-                            id="preview-button"
-                            hx-post="/preview"
-                            hx-trigger="click"
-                            hx-target="#markdown-preview"
-                            hx-swap="innerHTML"
-                            hx-include="#markdown-input"
-                            hx-validate="true"
-                            hx-disabled-elt="this"
-                            _="on htmx:afterRequest
-                               hide #markdown-input
-                               show #markdown-preview
-                               hide me
-                               show #edit-button"
-                               { "Preview" }
-                        button
-                            id="edit-button"
-                            style="display: none;"
-                            _="on click
-                               hide #markdown-preview
-                               show #markdown-input
-                               hide me
-                               show #preview-button"
-                               { "Edit" }
-                        button
-                            id="share-button"
-                            hx-post="/share"
-                            hx-trigger="click"
-                            hx-include="#markdown-input"
-                            hx-validate="true"
-                            hx-disabled-elt="this"
-                            { "Share" }
-                    }
-                    textarea
-                        id="markdown-input"
-                        name="content"
-                        placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" })
-                        style="height: calc(100vh - 275px); resize: none"
-                        required="required"
-                        _=(if initial_content.is_empty() {
-                            "on load
-                                set my.value to (localStorage.getItem('markdownContent'))
-                             on input
-                                wait 500ms then
-                                call localStorage.setItem('markdownContent', my.value)"
-                        } else {
-                            "on input
-                                wait 500ms then
-                                call localStorage.setItem('markdownContent', my.value)"
-                        })
-                        { (initial_content) }
-                    div id="markdown-preview" style="display: none; height: calc(100vh - 275px); overflow-y: auto;" {}
+            main aria-label="Content" style="display: flex; flex-direction: column;" {
+                h1 { "mdow 🌾" }
+                p { dfn { "A meadow for your " b { "markdown on web." } } }
+                p { "Enter your markdown, preview it, and share it." }
+                div class="grid" {
+                    button
+                        id="preview-button"
+                        hx-post="/preview"
+                        hx-trigger="click"
+                        hx-target="#markdown-preview"
+                        hx-swap="innerHTML"
+                        hx-include="#markdown-input"
+                        hx-validate="true"
+                        hx-disabled-elt="this"
+                        _="on htmx:afterRequest
+                           hide #markdown-input
+                           show #markdown-preview
+                           hide me
+                           show #edit-button"
+                           { "Preview" }
+                    button
+                        id="edit-button"
+                        style="display: none;"
+                        _="on click
+                           hide #markdown-preview
+                           show #markdown-input
+                           hide me
+                           show #preview-button"
+                           { "Edit" }
+                    button
+                        id="share-button"
+                        hx-post="/share"
+                        hx-trigger="click"
+                        hx-include="#markdown-input"
+                        hx-validate="true"
+                        hx-disabled-elt="this"
+                        { "Share" }
                 }
+                textarea
+                    id="markdown-input"
+                    name="content"
+                    placeholder=(if initial_content.is_empty() { "Enter your markdown..." } else { "" })
+                    style="flex: 1; resize: none"
+                    required="required"
+                    _=(if initial_content.is_empty() {
+                        "on load
+                            set my.value to (localStorage.getItem('markdownContent'))
+                         on input
+                            wait 500ms then
+                            call localStorage.setItem('markdownContent', my.value)"
+                    } else {
+                        "on input
+                            wait 500ms then
+                            call localStorage.setItem('markdownContent', my.value)"
+                    })
+                    { (initial_content) }
+                div id="markdown-preview" style="display: none; flex: 1; overflow-y: auto;" {}
             }
+            (create_page_footer());
         }
-        (create_page_footer());
     }
 }
 
@@ -130,25 +123,21 @@ pub fn create_markdown_viewer_page(doc: &MarkdownDocument) -> Markup {
     html! {
         (create_html_head(page_title));
         body a="auto" {
-            main class="content" aria-label="Content" {
-                div class="w" id="markdown-view" _="on load call MathJax.typeset()" {
-                    (PreEscaped(html_output))
-                }
+            main aria-label="Content" _="on load call MathJax.typeset()" {
+                (PreEscaped(html_output))
             }
-            footer {
-                div class="w grid" {
-                    (PreEscaped(generate_qr_svg(&doc.id)))
-                    div {
-                        p {
-                            "created on " (doc.created_at.format("%Y-%m-%d"))
-                        }
-                        p {
-                            a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
-                            " in "
-                            a href="/" { "mdow" }
-                            " 🌾"
-                        }
+            footer class="grid" {
+                div {
+                    p { "created on " (doc.created_at.format("%Y-%m-%d")) }
+                    p {
+                        a href=(format!("/?content={}", urlencoding::encode(&doc.content))) { "edit" }
+                        " in "
+                        a href="/" { "mdow" }
+                        " 🌾"
                     }
+                }
+                div style="justify-self: end;" {
+                    (PreEscaped(generate_qr_svg(&doc.id)))
                 }
             }
         }
@@ -159,12 +148,10 @@ pub fn create_404_page() -> Markup {
     html! {
         (create_html_head(Some("404")));
         body a="auto" {
-            main class="content" aria-label="Content" {
-                div class="w" {
-                    h1 { "404 - Page Not Found" }
-                    p { "The page you're looking for doesn't exist." }
-                    p { a href="/" { "Return to homepage" } }
-                }
+            main aria-label="Content" {
+                h1 { "404 - Page Not Found" }
+                p { "The page you're looking for doesn't exist." }
+                p { a href="/" { "Return to homepage" } }
             }
         }
         (create_page_footer());

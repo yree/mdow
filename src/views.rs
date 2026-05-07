@@ -209,6 +209,52 @@ pub fn create_markdown_viewer_page(doc: &Document) -> Markup {
     }
 }
 
+pub fn create_password_prompt_page(id: &str, target: &str, error: bool, rate_limit_secs: Option<u64>) -> Markup {
+    let locked = rate_limit_secs.is_some();
+    let secs = rate_limit_secs.unwrap_or(0);
+    html! {
+        (create_html_head(Some("Password required")));
+        body a="auto" {
+            main aria-label="Content" {
+                h1 { "Password required" }
+                p { "This document is password protected." }
+                @if locked {
+                    p id="rate-msg"
+                        _=(format!(
+                            "init set :s to {} \
+                             repeat until :s <= 0 \
+                               wait 1s \
+                               set :s to :s - 1 \
+                               put :s into #countdown \
+                             end \
+                             remove @disabled from #pw-input \
+                             remove @disabled from #unlock-btn \
+                             remove me",
+                            secs
+                        )) {
+                        "Too many failed attempts. Try again in "
+                        span id="countdown" { (secs) }
+                        "s."
+                    }
+                } @else if error {
+                    p { "Incorrect password, please try again." }
+                }
+                form method="post" action=(format!("/unlock/{}", id)) {
+                    input type="hidden" name="target" value=(target);
+                    label {
+                        "Password"
+                        input type="password" id="pw-input" name="password"
+                            autocomplete="current-password" required
+                            disabled[locked];
+                    }
+                    button type="submit" id="unlock-btn" disabled[locked] { "Unlock" }
+                }
+            }
+            (create_page_footer())
+        }
+    }
+}
+
 pub fn create_404_page() -> Markup {
     html! {
         (create_html_head(Some("404")));

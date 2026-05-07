@@ -14,4 +14,6 @@ uuid = { version = "1.7", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 qrcode = "0.12"
 ammonia = "4"
+argon2 = "0.5"
+rand_core = { version = "0.6", features = ["getrandom"] }
 

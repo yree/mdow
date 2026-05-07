@@ -5,6 +5,13 @@ use serde::Deserialize;
 pub struct MarkdownInput {
     pub content: String,
     pub days: Option<i64>,
+    pub password: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct UnlockInput {
+    pub password: String,
+    pub target: String,
 }
 
 #[derive(sqlx::FromRow)]

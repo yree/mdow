@@ -62,9 +62,13 @@ pub fn create_help_dialog() -> Markup {
                  if event.target is me then call me.close()" {
             h2 { "mdow 🌾" }
             p { "A meadow for your " b { "markdown on web." } }
-            p { "Write markdown, preview it, and share it as a link. Links stay active for " b { "31 days" } " by default." }
-            p { b { "Supports:" } " tables, task lists, strikethrough, LaTeX math, syntax highlighting." }
-            p { b { "Settings:" } " custom expiry, password protection, and unique view tracking." }
+            p style="margin-bottom: 0" { "Write markdown, preview it, and share it as a link. Share links stay active for 31 days — customize with ⚙️:" }
+            ul style="margin-top: 0" {
+                li { "Custom expiry" }
+                li { "Password protection" }
+                li { "Unique view tracking" }
+            }
+            p { span hx-get="/stats" hx-trigger="load" {} }
             button _="on click call #help-dialog.close()" { "Got it" }
         }
     }

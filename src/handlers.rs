@@ -164,6 +164,22 @@ pub async fn handle_unlock_request(
     }
 }
 
+pub async fn handle_stats_request(State(pool): State<SqlitePool>) -> impl IntoResponse {
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM documents")
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(0);
+
+    let live: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM documents WHERE datetime(created_at, '+' || days || ' days') > datetime('now')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    Html(format!("{total} docs shared, {live} still active."))
+}
+
 pub async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoResponse {
     let docs = sqlx::query_as::<_, Document>(
         "SELECT * FROM documents ORDER BY created_at DESC LIMIT 5",

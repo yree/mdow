@@ -180,29 +180,3 @@ pub async fn handle_stats_request(State(pool): State<SqlitePool>) -> impl IntoRe
     Html(format!("{total} docs shared, {live} still active."))
 }
 
-pub async fn handle_debug_request(State(pool): State<SqlitePool>) -> impl IntoResponse {
-    let docs = sqlx::query_as::<_, Document>(
-        "SELECT * FROM documents ORDER BY created_at DESC LIMIT 5",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
-
-    let markup = html! {
-        div {
-            h2 { "Recent Documents" }
-            @for doc in &docs {
-                div style="margin-bottom: 2ch; padding: 1ch; border: .2ch solid #000;" {
-                    p { "ID: " (doc.id) }
-                    p { "Created: " (doc.created_at.format("%Y-%m-%d")) }
-                    p { "Days: " (doc.days) }
-                    p { "Views: " (doc.views) }
-                    p { "Password: " (doc.password.as_deref().unwrap_or("none")) }
-                    p { "Content: " (doc.content) }
-                }
-            }
-        }
-    };
-
-    Html(markup.into_string())
-}

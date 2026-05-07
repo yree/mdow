@@ -10,7 +10,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use crate::models::{Document, MarkdownInput, RenderParams, UnlockInput};
 use crate::views::{create_markdown_editor_page, create_markdown_viewer_page, create_password_prompt_page};
-use crate::utils::{handle_404, save_document, hash_password, verify_password, generate_short_uuid, create_htmx_redirect_response, convert_markdown_to_html, RateLimiter};
+use crate::utils::{handle_404, save_document, hash_password, verify_password, generate_short_uuid, create_htmx_redirect_response, convert_markdown_to_html, RateLimiter, ViewTracker};
 
 const EXPIRY_SQL: &str =
     "SELECT * FROM documents WHERE id = ? AND datetime(created_at, '+' || days || ' days') > datetime('now')";
@@ -76,7 +76,9 @@ pub async fn handle_share_request(
         Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to hash password").into_response(),
     };
 
-    if save_document(&pool, &document_id, &input.content, days, password).await.is_err() {
+    let tracking = input.tracking.as_deref() == Some("on");
+
+    if save_document(&pool, &document_id, &input.content, days, password, tracking).await.is_err() {
         return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to save document").into_response();
     }
 
@@ -85,6 +87,9 @@ pub async fn handle_share_request(
 
 pub async fn handle_view_request(
     State(pool): State<SqlitePool>,
+    Extension(view_tracker): Extension<Arc<ViewTracker>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    request_headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     let doc = sqlx::query_as::<_, Document>(EXPIRY_SQL)
@@ -96,14 +101,27 @@ pub async fn handle_view_request(
         Ok(Some(doc)) if doc.password.is_some() => {
             Html(create_password_prompt_page(&id, "view", false, None).into_string())
         }
-        Ok(Some(doc)) => Html(create_markdown_viewer_page(&doc).into_string()),
+        Ok(Some(doc)) => {
+            record_view(&pool, &view_tracker, &doc, get_client_ip(&request_headers, addr)).await;
+            Html(create_markdown_viewer_page(&doc).into_string())
+        }
         _ => handle_404(),
+    }
+}
+
+async fn record_view(pool: &SqlitePool, tracker: &ViewTracker, doc: &Document, ip: IpAddr) {
+    if doc.tracking && tracker.record(&doc.id, ip) {
+        let _ = sqlx::query("UPDATE documents SET views = views + 1 WHERE id = ?")
+            .bind(&doc.id)
+            .execute(pool)
+            .await;
     }
 }
 
 pub async fn handle_unlock_request(
     State(pool): State<SqlitePool>,
     Extension(rate_limiter): Extension<Arc<RateLimiter>>,
+    Extension(view_tracker): Extension<Arc<ViewTracker>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     request_headers: HeaderMap,
     Path(id): Path<String>,
@@ -141,6 +159,7 @@ pub async fn handle_unlock_request(
     if input.target == "edit" {
         Html(create_markdown_editor_page(&doc.content).into_string()).into_response()
     } else {
+        record_view(&pool, &view_tracker, &doc, ip).await;
         Html(create_markdown_viewer_page(&doc).into_string()).into_response()
     }
 }

@@ -6,7 +6,7 @@ mod views;
 
 use crate::database::setup_database;
 use crate::handlers::{handle_main_request, handle_preview_request, handle_share_request, handle_view_request, handle_unlock_request, handle_debug_request};
-use crate::utils::{handle_404, RateLimiter};
+use crate::utils::{handle_404, RateLimiter, ViewTracker};
 use axum::{
     http::StatusCode,
     routing::{get, post},
@@ -37,6 +37,7 @@ async fn main() -> Result<()> {
 
 fn setup_router(pool: SqlitePool) -> Router {
     let rate_limiter = Arc::new(RateLimiter::new());
+    let view_tracker = Arc::new(ViewTracker::new());
     Router::new()
         .route("/", get(handle_main_request))
         .route("/preview", post(handle_preview_request))
@@ -46,6 +47,7 @@ fn setup_router(pool: SqlitePool) -> Router {
         .route("/debug", get(handle_debug_request))
         .fallback(|| async { (StatusCode::NOT_FOUND, handle_404()) })
         .layer(Extension(rate_limiter))
+        .layer(Extension(view_tracker))
         .with_state(pool)
 }
 

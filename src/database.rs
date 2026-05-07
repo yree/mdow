@@ -24,12 +24,17 @@ pub async fn setup_database() -> Result<SqlitePool> {
             created_at DATETIME NOT NULL DEFAULT (datetime('now')),
             days INTEGER NOT NULL DEFAULT 30,
             views INTEGER NOT NULL DEFAULT 0,
-            password TEXT
+            password TEXT,
+            tracking BOOLEAN NOT NULL DEFAULT 0
         )
         "#,
     )
     .execute(&pool)
     .await?;
+
+    let _ = sqlx::query("ALTER TABLE documents ADD COLUMN tracking BOOLEAN NOT NULL DEFAULT 0")
+        .execute(&pool)
+        .await;
 
     Ok(pool)
 }

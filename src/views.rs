@@ -62,9 +62,9 @@ pub fn create_help_dialog() -> Markup {
                  if event.target is me then call me.close()" {
             h2 { "mdow 🌾" }
             p { "A meadow for your " b { "markdown on web." } }
-            hr;
-            p { "Write markdown, preview it, and share it as a link. Links stay active for " b { "30 days." } }
+            p { "Write markdown, preview it, and share it as a link. Links stay active for " b { "31 days" } " by default." }
             p { b { "Supports:" } " tables, task lists, strikethrough, LaTeX math, syntax highlighting." }
+            p { b { "Settings:" } " custom expiry, password protection, and unique view tracking." }
             button _="on click call #help-dialog.close()" { "Got it" }
         }
     }
@@ -96,11 +96,39 @@ pub fn create_settings_dialog() -> Markup {
                 " Track unique views"
             }
             div class="grid" {
-                button _="on click call #settings-dialog.close()" { "Cancel" }
-                button _="on click
-                           set #share-days.value to #settings-days.value
-                           set #share-password.value to #settings-password.value
-                           call #settings-dialog.close()" { "Save" }
+                button type="button" _="on click call #settings-dialog.close()" { "Cancel" }
+                button type="button" _="on click
+                             set pwd to #settings-password.value
+                             set days to #settings-days.value
+                             if #settings-tracking.checked
+                               set tracking to 'on'
+                             else
+                               set tracking to ''
+                             end
+                             set #share-password.value to pwd
+                             set #share-days.value to days
+                             set #share-tracking.value to tracking
+                             call #settings-dialog.close()
+                             if pwd or days is not '31' or tracking is 'on'
+                               set #lbl-default.style.display to 'none'
+                             else
+                               set #lbl-default.style.display to 'inline'
+                             end
+                             if pwd
+                               set #lbl-lock.style.display to 'inline'
+                             else
+                               set #lbl-lock.style.display to 'none'
+                             end
+                             if days is not '31'
+                               set #lbl-timer.style.display to 'inline'
+                             else
+                               set #lbl-timer.style.display to 'none'
+                             end
+                             if tracking is 'on'
+                               set #lbl-eyes.style.display to 'inline'
+                             else
+                               set #lbl-eyes.style.display to 'none'
+                             end" { "Save" }
             }
         }
     }
@@ -114,6 +142,7 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
             (create_settings_dialog())
             input type="hidden" id="share-days" name="days" value="31";
             input type="hidden" id="share-password" name="password" value="";
+            input type="hidden" id="share-tracking" name="tracking" value="";
             main aria-label="Content" style="display: flex; flex-direction: column;" {
                 div class="grid" {
                     button
@@ -145,12 +174,18 @@ pub fn create_markdown_editor_page(initial_content: &str) -> Markup {
                         _="on click
                            set #settings-days.value to #share-days.value
                            set #settings-password.value to #share-password.value
-                           call #settings-dialog.showModal()" { "⚙️" }
+                           set #settings-tracking.checked to (#share-tracking.value is 'on')
+                           call #settings-dialog.showModal()" {
+                        span id="lbl-default" { "⚙️" }
+                        span id="lbl-lock" style="display:none" { "🔒" }
+                        span id="lbl-timer" style="display:none" { "⏳" }
+                        span id="lbl-eyes" style="display:none" { "👀" }
+                    }
                     button
                         id="share-button"
                         hx-post="/share"
                         hx-trigger="click"
-                        hx-include="#markdown-input, #share-days, #share-password"
+                        hx-include="#markdown-input, #share-days, #share-password, #share-tracking"
                         hx-validate="true"
                         hx-disabled-elt="this"
                         { "Share" }
@@ -193,7 +228,11 @@ pub fn create_markdown_viewer_page(doc: &Document) -> Markup {
             }
             footer class="grid" {
                 div {
-                    p { "expires " (expires_at.format("%Y-%m-%d")) }
+                    @if doc.tracking {
+                        p { (doc.views) " views. expires " (expires_at.format("%Y-%m-%d")) }
+                    } @else {
+                        p { "expires " (expires_at.format("%Y-%m-%d")) }
+                    }
                     p {
                         a href=(format!("/?id={}", doc.id)) { "edit" }
                         " in "

@@ -6,6 +6,7 @@ pub struct MarkdownInput {
     pub content: String,
     pub days: Option<i64>,
     pub password: Option<String>,
+    pub tracking: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -22,6 +23,7 @@ pub struct Document {
     pub days: i64,
     pub views: i64,
     pub password: Option<String>,
+    pub tracking: bool,
 }
 
 #[derive(Deserialize)]

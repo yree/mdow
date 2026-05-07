@@ -5,7 +5,7 @@ use uuid::Uuid;
 use axum::response::{Html, IntoResponse};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use rand_core::OsRng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -113,15 +113,28 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .unwrap_or(false)
 }
 
-pub async fn save_document(pool: &SqlitePool, id: &str, content: &str, days: i64, password: Option<String>) -> Result<()> {
-    sqlx::query("INSERT INTO documents (id, content, days, password) VALUES (?, ?, ?, ?)")
+pub async fn save_document(pool: &SqlitePool, id: &str, content: &str, days: i64, password: Option<String>, tracking: bool) -> Result<()> {
+    sqlx::query("INSERT INTO documents (id, content, days, password, tracking) VALUES (?, ?, ?, ?, ?)")
         .bind(id)
         .bind(content)
         .bind(days)
         .bind(password)
+        .bind(tracking)
         .execute(pool)
         .await?;
     Ok(())
+}
+
+pub struct ViewTracker(Mutex<HashSet<(String, String)>>);
+
+impl ViewTracker {
+    pub fn new() -> Self {
+        Self(Mutex::new(HashSet::new()))
+    }
+
+    pub fn record(&self, doc_id: &str, ip: IpAddr) -> bool {
+        self.0.lock().unwrap().insert((doc_id.to_owned(), ip.to_string()))
+    }
 }
 
 pub fn handle_404() -> Html<String> {

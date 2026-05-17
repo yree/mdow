@@ -252,6 +252,16 @@ pub fn create_markdown_viewer_page(doc: &Document) -> Markup {
     }
 }
 
+fn fmt_secs(secs: u64) -> String {
+    let m = secs / 60;
+    let s = secs % 60;
+    match (m, s) {
+        (0, s) => format!("{s}s"),
+        (m, 0) => format!("{m}m"),
+        (m, s) => format!("{m}m {s}s"),
+    }
+}
+
 pub fn create_password_prompt_page(id: &str, target: &str, error: bool, rate_limit_secs: Option<u64>) -> Markup {
     let locked = rate_limit_secs.is_some();
     let secs = rate_limit_secs.unwrap_or(0);
@@ -262,27 +272,22 @@ pub fn create_password_prompt_page(id: &str, target: &str, error: bool, rate_lim
                 h1 { "Password required" }
                 p { "This document is password protected." }
                 @if locked {
-                    p id="rate-msg"
-                        _=(format!(
-                            "init set :s to {} \
-                             repeat until :s <= 0 \
-                               wait 1s \
-                               set :s to :s - 1 \
-                               put :s into #countdown \
-                             end \
-                             remove @disabled from #pw-input \
-                             remove @disabled from #unlock-btn \
-                             remove me",
-                            secs
-                        )) {
+                    p id="rate-msg" {
                         "Too many failed attempts. Try again in "
-                        span id="countdown" { (secs) }
-                        "s."
+                        span id="countdown" { (fmt_secs(secs)) }
+                        "."
                     }
+                    (PreEscaped(format!(r#"<script>(function(){{
+var t={secs},iv=setInterval(function(){{
+  t--;
+  if(t<=0){{clearInterval(iv);document.getElementById('pw-input').disabled=false;document.getElementById('unlock-btn').disabled=false;document.getElementById('rate-msg').remove();return;}}
+  var m=Math.floor(t/60),s=t%60;
+  document.getElementById('countdown').textContent=m>0?(s>0?m+'m '+s+'s':m+'m'):s+'s';
+}},1000);}})()</script>"#, secs = secs)))
                 } @else if error {
                     p { "Incorrect password, please try again." }
                 }
-                form method="post" action=(format!("/unlock/{}", id)) {
+                form method="post" action=(if target == "view" { format!("/view/{}", id) } else { format!("/unlock/{}", id) }) {
                     input type="hidden" name="target" value=(target);
                     label {
                         "Password"

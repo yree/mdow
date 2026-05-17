@@ -42,7 +42,7 @@ fn setup_router(pool: SqlitePool) -> Router {
         .route("/", get(handle_main_request))
         .route("/preview", post(handle_preview_request))
         .route("/share", post(handle_share_request))
-        .route("/view/:id", get(handle_view_request))
+        .route("/view/:id", get(handle_view_request).post(handle_unlock_request))
         .route("/unlock/:id", post(handle_unlock_request))
         .route("/stats", get(handle_stats_request))
         .fallback(|| async { (StatusCode::NOT_FOUND, handle_404()) })

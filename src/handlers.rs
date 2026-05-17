@@ -88,6 +88,7 @@ pub async fn handle_share_request(
 pub async fn handle_view_request(
     State(pool): State<SqlitePool>,
     Extension(view_tracker): Extension<Arc<ViewTracker>>,
+    Extension(rate_limiter): Extension<Arc<RateLimiter>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     request_headers: HeaderMap,
     Path(id): Path<String>,
@@ -99,7 +100,9 @@ pub async fn handle_view_request(
 
     match doc {
         Ok(Some(doc)) if doc.password.is_some() => {
-            Html(create_password_prompt_page(&id, "view", false, None).into_string())
+            let ip = get_client_ip(&request_headers, addr);
+            let secs = rate_limiter.secs_remaining(ip, &id);
+            Html(create_password_prompt_page(&id, "view", false, secs).into_string())
         }
         Ok(Some(doc)) => {
             record_view(&pool, &view_tracker, &doc, get_client_ip(&request_headers, addr)).await;

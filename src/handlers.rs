@@ -6,21 +6,27 @@ use axum::{
     Extension,
 };
 use sqlx::SqlitePool;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
-use crate::models::{Document, MarkdownInput, RenderParams, UnlockInput};
-use crate::views::{create_markdown_editor_page, create_markdown_viewer_page, create_password_prompt_page};
+use crate::models::{CountdownParams, Document, LockoutParams, MarkdownInput, RenderParams, UnlockInput};
+use crate::views::{create_lockout_fragment, create_markdown_editor_page, create_markdown_viewer_page, create_password_prompt_page, create_unlock_form_fragment};
 use crate::utils::{handle_404, save_document, hash_password, verify_password, generate_short_uuid, create_htmx_redirect_response, convert_markdown_to_html, RateLimiter, ViewTracker};
 
 const EXPIRY_SQL: &str =
     "SELECT * FROM documents WHERE id = ? AND datetime(created_at, '+' || days || ' days') > datetime('now')";
 
 fn get_client_ip(headers: &HeaderMap, addr: SocketAddr) -> IpAddr {
-    headers.get("x-forwarded-for")
+    let ip = headers.get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.split(',').next())
         .and_then(|v| v.trim().parse().ok())
-        .unwrap_or(addr.ip())
+        .unwrap_or(addr.ip());
+    // Normalize IPv6 loopback and IPv4-mapped addresses to IPv4
+    match ip {
+        IpAddr::V6(v6) if v6 == Ipv6Addr::LOCALHOST => IpAddr::V4(Ipv4Addr::LOCALHOST),
+        IpAddr::V6(v6) => v6.to_ipv4_mapped().map(IpAddr::V4).unwrap_or(IpAddr::V6(v6)),
+        other => other,
+    }
 }
 
 pub async fn handle_main_request(
@@ -101,8 +107,8 @@ pub async fn handle_view_request(
     match doc {
         Ok(Some(doc)) if doc.password.is_some() => {
             let ip = get_client_ip(&request_headers, addr);
-            let secs = rate_limiter.secs_remaining(ip, &id);
-            Html(create_password_prompt_page(&id, "view", false, secs).into_string())
+            let lockout = rate_limiter.lockout_info(ip, &id);
+            Html(create_password_prompt_page(&id, "view", false, lockout).into_string())
         }
         Ok(Some(doc)) => {
             record_view(&pool, &view_tracker, &doc, get_client_ip(&request_headers, addr)).await;
@@ -132,8 +138,8 @@ pub async fn handle_unlock_request(
 ) -> Response {
     let ip = get_client_ip(&request_headers, addr);
 
-    if let Some(secs) = rate_limiter.secs_remaining(ip, &id) {
-        return Html(create_password_prompt_page(&id, &input.target, false, Some(secs)).into_string()).into_response();
+    if let Some(lockout) = rate_limiter.lockout_info(ip, &id) {
+        return Html(create_password_prompt_page(&id, &input.target, false, Some(lockout)).into_string()).into_response();
     }
 
     let doc = sqlx::query_as::<_, Document>(EXPIRY_SQL)
@@ -153,8 +159,8 @@ pub async fn handle_unlock_request(
 
     if !verify_password(input.password.trim(), hash) {
         rate_limiter.record_failure(ip, &id);
-        let secs = rate_limiter.secs_remaining(ip, &id);
-        return Html(create_password_prompt_page(&id, &input.target, true, secs).into_string()).into_response();
+        let lockout = rate_limiter.lockout_info(ip, &id);
+        return Html(create_password_prompt_page(&id, &input.target, true, lockout).into_string()).into_response();
     }
 
     rate_limiter.reset(ip, &id);
@@ -164,6 +170,53 @@ pub async fn handle_unlock_request(
     } else {
         record_view(&pool, &view_tracker, &doc, ip).await;
         Html(create_markdown_viewer_page(&doc).into_string()).into_response()
+    }
+}
+
+pub async fn handle_lockout_request(
+    State(pool): State<SqlitePool>,
+    Extension(rate_limiter): Extension<Arc<RateLimiter>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    request_headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(params): Query<LockoutParams>,
+) -> Response {
+    let ip = get_client_ip(&request_headers, addr);
+    let target = params.target.as_deref().unwrap_or("view");
+
+    if let Some(secs) = rate_limiter.secs_remaining(ip, &id) {
+        return Html(create_lockout_fragment(&id, target, secs).into_string()).into_response();
+    }
+
+    let doc = sqlx::query_as::<_, Document>(EXPIRY_SQL)
+        .bind(&id)
+        .fetch_optional(&pool)
+        .await;
+
+    if let Ok(Some(_)) = doc {
+        let mut response = Html(create_unlock_form_fragment(&id, target).into_string()).into_response();
+        response.headers_mut().insert("HX-Trigger", "unlock".parse().unwrap());
+        response
+    } else {
+        handle_404().into_response()
+    }
+}
+
+pub async fn handle_countdown_request(
+    Query(params): Query<CountdownParams>,
+) -> Response {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    if params.expires > now {
+        let remaining = params.expires - now;
+        Html(create_lockout_fragment(&params.id, &params.target, remaining).into_string()).into_response()
+    } else {
+        let mut response = Html(create_unlock_form_fragment(&params.id, &params.target).into_string()).into_response();
+        response.headers_mut().insert("HX-Trigger", "unlock".parse().unwrap());
+        response
     }
 }
 

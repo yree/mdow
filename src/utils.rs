@@ -21,14 +21,23 @@ impl RateLimiter {
         Self(Mutex::new(HashMap::new()))
     }
 
-    pub fn secs_remaining(&self, ip: IpAddr, doc_id: &str) -> Option<u64> {
+    pub fn lockout_info(&self, ip: IpAddr, doc_id: &str) -> Option<(u64, u64)> {
         let map = self.0.lock().unwrap();
         match map.get(&(ip, doc_id.to_owned())) {
             Some((count, since)) if *count >= MAX_ATTEMPTS && since.elapsed() < LOCKOUT_DURATION => {
-                Some((LOCKOUT_DURATION - since.elapsed()).as_secs().max(1))
+                let remaining_secs = (LOCKOUT_DURATION - since.elapsed()).as_secs().max(1);
+                let expiry_unix = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() + remaining_secs;
+                Some((remaining_secs, expiry_unix))
             }
             _ => None,
         }
+    }
+
+    pub fn secs_remaining(&self, ip: IpAddr, doc_id: &str) -> Option<u64> {
+        self.lockout_info(ip, doc_id).map(|(s, _)| s)
     }
 
     pub fn record_failure(&self, ip: IpAddr, doc_id: &str) {

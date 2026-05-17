@@ -28,8 +28,8 @@ pub fn create_html_head(page_title: Option<&str>) -> Markup {
             link rel="stylesheet" href="https://yree.io/mold/assets/css/main.css";
 
             script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async="" {};
-            script src="https://unpkg.com/htmx.org@1.9.10" {};
-            script src="https://unpkg.com/hyperscript.org@0.9.12" {};
+            script src="https://unpkg.com/htmx.org@2.0.10" {};
+            script src="https://unpkg.com/hyperscript.org@0.9.91" {};
 
             script data-goatcounter="https://yree.goatcounter.com/count" async src="//gc.zgo.at/count.js" {};
         }
@@ -58,8 +58,9 @@ pub fn create_help_dialog() -> Markup {
                  if localStorage.getItem('mdow-visited') is null
                    call me.showModal()
                    call localStorage.setItem('mdow-visited', 'true')
+                 end
                on click
-                 if event.target is me then call me.close()" {
+                 if event.target is me then call me.close() end" {
             h2 { "mdow 🌾" }
             p { "A meadow for your " b { "markdown on web." } }
             p style="margin-bottom: 0" { "Write markdown, preview it, and share it as a link. Share links stay active for 31 days — customize with ⚙️:" }
@@ -81,7 +82,8 @@ pub fn create_settings_dialog() -> Markup {
                  set r to my.getBoundingClientRect()
                  if event.clientX < r.left or event.clientX > r.right
                     or event.clientY < r.top or event.clientY > r.bottom
-                   call me.close()" {
+                   call me.close()
+                 end" {
             h3 { "Share settings" }
             label {
                 "Password"
@@ -92,8 +94,10 @@ pub fn create_settings_dialog() -> Markup {
                 "Days active"
                 input type="number" id="settings-days" name="days"
                     value="31" min="1" max="365"
-                    _="on input if (my.value as Int) > 365 then set my.value to 365
-                                else if (my.value as Int) < 1 then set my.value to 1";
+                    _="on input
+                         if (my.value as Int) > 365 then set my.value to 365
+                         else if (my.value as Int) < 1 then set my.value to 1
+                         end";
             }
             label {
                 input type="checkbox" id="settings-tracking" name="tracking";
@@ -262,9 +266,39 @@ fn fmt_secs(secs: u64) -> String {
     }
 }
 
-pub fn create_password_prompt_page(id: &str, target: &str, error: bool, rate_limit_secs: Option<u64>) -> Markup {
-    let locked = rate_limit_secs.is_some();
-    let secs = rate_limit_secs.unwrap_or(0);
+pub fn create_lockout_fragment(id: &str, target: &str, secs: u64) -> Markup {
+    html! {
+        p id="rate-msg" {
+            "Too many failed attempts. Try again in "
+            span { (fmt_secs(secs)) }
+            "."
+        }
+        (create_password_form(id, target, true))
+    }
+}
+
+pub fn create_unlock_form_fragment(id: &str, target: &str) -> Markup {
+    create_password_form(id, target, false)
+}
+
+fn create_password_form(id: &str, target: &str, disabled: bool) -> Markup {
+    html! {
+        form method="post" action=(if target == "view" { format!("/view/{}", id) } else { format!("/unlock/{}", id) }) {
+            input type="hidden" name="target" value=(target);
+            label {
+                "Password"
+                input type="password" id="pw-input" name="password"
+                    autocomplete="current-password" required
+                    disabled[disabled];
+            }
+            button type="submit" id="unlock-btn" disabled[disabled] { "Unlock" }
+        }
+    }
+}
+
+pub fn create_password_prompt_page(id: &str, target: &str, error: bool, lockout: Option<(u64, u64)>) -> Markup {
+    let locked = lockout.is_some();
+    let (secs, expiry_unix) = lockout.unwrap_or((0, 0));
     html! {
         (create_html_head(Some("Password required")));
         body a="auto" {
@@ -272,30 +306,19 @@ pub fn create_password_prompt_page(id: &str, target: &str, error: bool, rate_lim
                 h1 { "Password required" }
                 p { "This document is password protected." }
                 @if locked {
-                    p id="rate-msg" {
-                        "Too many failed attempts. Try again in "
-                        span id="countdown" { (fmt_secs(secs)) }
-                        "."
+                    div id="lockout-ui"
+                        hx-get=(format!("/countdown?expires={}&target={}&id={}", expiry_unix, target, id))
+                        hx-trigger="every 5s"
+                        hx-target="this"
+                        hx-swap="innerHTML"
+                        _="on unlock remove @hx-trigger from me end" {
+                        (create_lockout_fragment(id, target, secs))
                     }
-                    (PreEscaped(format!(r#"<script>(function(){{
-var t={secs},iv=setInterval(function(){{
-  t--;
-  if(t<=0){{clearInterval(iv);document.getElementById('pw-input').disabled=false;document.getElementById('unlock-btn').disabled=false;document.getElementById('rate-msg').remove();return;}}
-  var m=Math.floor(t/60),s=t%60;
-  document.getElementById('countdown').textContent=m>0?(s>0?m+'m '+s+'s':m+'m'):s+'s';
-}},1000);}})()</script>"#, secs = secs)))
-                } @else if error {
-                    p { "Incorrect password, please try again." }
-                }
-                form method="post" action=(if target == "view" { format!("/view/{}", id) } else { format!("/unlock/{}", id) }) {
-                    input type="hidden" name="target" value=(target);
-                    label {
-                        "Password"
-                        input type="password" id="pw-input" name="password"
-                            autocomplete="current-password" required
-                            disabled[locked];
+                } @else {
+                    @if error {
+                        p { "Incorrect password, please try again." }
                     }
-                    button type="submit" id="unlock-btn" disabled[locked] { "Unlock" }
+                    (create_password_form(id, target, false))
                 }
             }
             (create_page_footer())

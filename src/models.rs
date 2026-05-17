@@ -31,3 +31,15 @@ pub struct RenderParams {
     pub content: Option<String>,
     pub id: Option<String>,
 }
+
+#[derive(Deserialize)]
+pub struct LockoutParams {
+    pub target: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CountdownParams {
+    pub expires: u64,
+    pub target: String,
+    pub id: String,
+}

@@ -5,7 +5,7 @@ mod models;
 mod views;
 
 use crate::database::setup_database;
-use crate::handlers::{handle_main_request, handle_preview_request, handle_share_request, handle_view_request, handle_unlock_request, handle_stats_request};
+use crate::handlers::{handle_countdown_request, handle_lockout_request, handle_main_request, handle_preview_request, handle_share_request, handle_view_request, handle_unlock_request, handle_stats_request};
 use crate::utils::{handle_404, RateLimiter, ViewTracker};
 use axum::{
     http::StatusCode,
@@ -44,6 +44,8 @@ fn setup_router(pool: SqlitePool) -> Router {
         .route("/share", post(handle_share_request))
         .route("/view/:id", get(handle_view_request).post(handle_unlock_request))
         .route("/unlock/:id", post(handle_unlock_request))
+        .route("/lockout/:id", get(handle_lockout_request))
+        .route("/countdown", get(handle_countdown_request))
         .route("/stats", get(handle_stats_request))
         .fallback(|| async { (StatusCode::NOT_FOUND, handle_404()) })
         .layer(Extension(rate_limiter))
